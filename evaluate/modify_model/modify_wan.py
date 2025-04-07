@@ -113,11 +113,18 @@ def sparge_forward(self, x, seq_lens, grid_sizes, freqs):
     assert seq_lens.shape[0] == 1
     
     q, k, v = qkv_fn(x)
+    if self.use_usp:
+        from wan.distributed.xdit_context_parallel import rope_apply as rope_apply_usp
+        q = rope_apply_usp(q, grid_sizes, freqs)
+        k = rope_apply_usp(k, grid_sizes, freqs)
+    else:
+        q = rope_apply(q, grid_sizes, freqs)
+        k = rope_apply(k, grid_sizes, freqs)
     
     x = flash_attention(
             self.inner_attention,
-            q=rope_apply(q, grid_sizes, freqs),
-            k=rope_apply(k, grid_sizes, freqs),
+            q=q,
+            k=k,
             v=v,
         )
 
@@ -132,12 +139,19 @@ def set_spas_sage_attn_wan(
     verbose=False,
     l1=0.07,
     pv_l1=0.08,
-    tune_pv=True
+    tune_pv=True,
+    use_usp=False,
 ):
     for block in model.blocks:
         block.self_attn.verbose = verbose
-        block.self_attn.inner_attention = SparseAttentionMeansim(l1=l1, pv_l1=pv_l1, tune_pv=tune_pv)
+        block.self_attn.use_usp = use_usp
         block.self_attn.forward = sparge_forward.__get__(block.self_attn, type(block.self_attn))
-    
-    
-    
+        if use_usp:
+            from xfuser.core.long_ctx_attention import xFuserLongContextAttention, AttnType
+            block.self_attn.attn_processor = SparseAttentionMeansim(l1=l1, pv_l1=pv_l1, tune_pv=tune_pv)
+            block.self_attn.usp_processor = xFuserLongContextAttention(attn_processor=block.self_attn.attn_processor, attn_type=AttnType.SPARSE_SAGE)
+            def inner_attention_usp(q, k, v, scale, is_causal, tensor_layout):
+                return block.self_attn.usp_processor(None, q, k, v, softmax_scale=scale, causal=is_causal)
+            block.self_attn.inner_attention = inner_attention_usp
+        else:
+            block.self_attn.inner_attention = SparseAttentionMeansim(l1=l1, pv_l1=pv_l1, tune_pv=tune_pv)

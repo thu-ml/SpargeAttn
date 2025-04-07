@@ -89,7 +89,8 @@ def _parse_args():
     parser.add_argument(
         "--size",
         type=str,
-        default="1280*720",
+        # default="1280*720",
+        default="832*480",
         choices=list(SIZE_CONFIGS.keys()),
         help="The area (width*height) of the generated video. For the I2V task, the aspect ratio of the output video will follow that of the input image."
     )
@@ -313,7 +314,7 @@ def generate(args):
         )
         
         if args.use_spas_sage_attn:
-            set_spas_sage_attn_wan(wan_t2v.model, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1, tune_pv=args.tune_pv)
+            set_spas_sage_attn_wan(wan_t2v.model, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1, tune_pv=args.tune_pv, use_usp=(args.ulysses_size > 1 or args.ring_size > 1))
             if not args.tune:
                 saved_state_dict = torch.load(args.model_out_path)
                 load_sparse_attention_state_dict(wan_t2v.model, saved_state_dict)
@@ -385,7 +386,7 @@ def generate(args):
         )
         
         if args.use_spas_sage_attn:
-            set_spas_sage_attn_wan(wan_i2v.model, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1, tune_pv=args.tune_pv)
+            set_spas_sage_attn_wan(wan_i2v.model, verbose=args.verbose, l1=args.l1, pv_l1=args.pv_l1, tune_pv=args.tune_pv, use_usp=(args.ulysses_size > 1 or args.ring_size > 1))
             if not args.tune:
                 saved_state_dict = torch.load(args.model_out_path)
                 load_sparse_attention_state_dict(wan_i2v.model, saved_state_dict)
