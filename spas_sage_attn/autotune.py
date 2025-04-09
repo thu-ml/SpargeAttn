@@ -33,7 +33,10 @@ def load_sparse_attention_state_dict(model, saved_state_dict, multigpu=False, ve
                     if verbose: print(f'{sk} is a substate_dict of {k}, we will load it.')
                     sub_name = sk.split(k)[1][1:]
                     if multigpu:
-                        sv= sv.to(device=v.device)
+                        try:
+                            sv = sv.to(device=v.device)
+                        except AttributeError:
+                            sv = sv.to(device=f"cuda:{torch.cuda.current_device()}")
                     else:
                         sv = sv.to(device=device, dtype=dtype)
                     setattr(v, sub_name, nn.Parameter(sv, requires_grad=False))
