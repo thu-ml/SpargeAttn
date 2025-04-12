@@ -3,3 +3,4 @@ diffusers
 einops
 protobuf
 sentencepiece
+ninja

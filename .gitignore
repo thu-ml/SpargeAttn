@@ -5,3 +5,4 @@ spas_sage_attn.egg-info
 /build
 *.so
 .DS_Store
+inst*.cu

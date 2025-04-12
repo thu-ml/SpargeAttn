@@ -1,8 +1,7 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <torch/extension.h>
 
-#include "../dispatch_utils.h"
-#include "../utils.cuh"
+#include "../pytorch_extensions_utils.cuh"
 #include "../reduction_utils.cuh"
 #include "../numeric_conversion.cuh"
 #include "../cp_async.cuh"
@@ -278,8 +277,8 @@ void scale_fuse_quant_cuda(
   CHECK_CUDA(output);
   CHECK_CUDA(scale);
 
-  // CHECK_DTYPE(output, torch::kInt8);
-  CHECK_DTYPE(scale, torch::kFloat);
+  // CHECK_DTYPE(output, at::ScalarType::Char);
+  CHECK_DTYPE(scale, at::ScalarType::Float);
 
   CHECK_CONTIGUOUS(input);
   CHECK_CONTIGUOUS(output);

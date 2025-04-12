@@ -1,4 +1,21 @@
+"""
+Copyright (c) 2025 by SpargeAttn team.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
 import os
+from pathlib import Path
 import subprocess
 from packaging.version import parse, Version
 from typing import List, Set
@@ -7,6 +24,26 @@ import warnings
 from setuptools import setup, find_packages
 import torch
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
+
+def run_instantiations(src_dir: str):
+    base_path = Path(src_dir)
+    py_files = [
+        path for path in base_path.rglob('*.py')
+        if path.is_file()
+    ]
+
+    for py_file in py_files:
+        print(f"Running: {py_file}")
+        os.system(f"python {py_file}")
+
+def get_instantiations(src_dir: str):
+    # get all .cu files under src_dir
+    base_path = Path(src_dir)
+    return [
+        os.path.join(src_dir, str(path.relative_to(base_path)))
+        for path in base_path.rglob('*')
+        if path.is_file() and path.suffix == ".cu"
+    ]
 
 # Supported NVIDIA GPU architectures.
 SUPPORTED_ARCHS = {"8.0", "8.6", "8.7", "8.9", "9.0"}
@@ -115,14 +152,16 @@ for capability in compute_capabilities:
 
 ext_modules = []
 
+run_instantiations("csrc/qattn/instantiations_sm89")
+
 # Attention kernels.
 qattn_extension = CUDAExtension(
     name="spas_sage_attn._qattn",
     sources=[
         "csrc/qattn/pybind.cpp",
-        "csrc/qattn/qk_int_sv_f16_cuda.cu",
-        "csrc/qattn/qk_int_sv_f8_cuda.cu",
-    ],
+        "csrc/qattn/qk_int_sv_f16_cuda_sm80.cu",
+        "csrc/qattn/qk_int_sv_f8_cuda_sm89.cu",
+    ] + get_instantiations("csrc/qattn/instantiations_sm89") + get_instantiations("csrc/qattn/instantiations_sm80"),
     extra_compile_args={
         "cxx": CXX_FLAGS,
         "nvcc": NVCC_FLAGS,

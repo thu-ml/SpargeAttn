@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 by SpargAttn team.
+ * Copyright (c) 2025 by SpargeAttn team.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,8 @@
  */
 
 #pragma once
-#include "../utils.cuh"
 #include <cuda_fp16.h>
 #include <cuda_pipeline_primitives.h>
-#include <torch/extension.h>
 
 #include "../cp_async.cuh"
 #include "../mma.cuh"
@@ -34,23 +32,23 @@
 #define div_ceil(M, N) (((M) + (N)-1) / (N))
 
 enum class MaskMode {
-    kNone = 0,
-    kCausal = 1,
+  kNone = 0,
+  kCausal = 1,
 };
 
 enum class DataType {
-    kHalf,
-    kInt8,
-    kInt4,
-    kE4M3,
-    kE5M2,
+  kHalf,
+  kInt8,
+  kInt4,
+  kE4M3,
+  kE5M2,
 };
 
 enum class QuantGranularity {
-    kPerTensor = 0,
-    kPerBlock = 1,
-    kPerWarp = 2,
-    kPerThread = 3,
+  kPerTensor = 0,
+  kPerBlock = 1,
+  kPerWarp = 2,
+  kPerThread = 3,
 };
 
 enum class ComputeUnit {
@@ -59,9 +57,9 @@ enum class ComputeUnit {
 };
 
 enum class PVThresholdMode {
-  kNone,
-  kPerBlock,
-  kPerWarp,
+  kNone = 0,
+  kPerBlock = 1,
+  kPerWarp = 2,
 };
 
 __device__ __forceinline__ uint32_t get_warp_id()

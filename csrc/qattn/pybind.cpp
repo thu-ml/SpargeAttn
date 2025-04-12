@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 by SpargAttn team.
+ * Copyright (c) 2025 by SpargeAttn team.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
  */
 
 #include <pybind11/pybind11.h>
-#include <torch/extension.h>
 #include "attn_cuda.h"
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
