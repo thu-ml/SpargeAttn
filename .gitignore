@@ -6,3 +6,4 @@ spas_sage_attn.egg-info
 *.so
 .DS_Store
 inst*.cu
+/unit_test

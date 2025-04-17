@@ -31,7 +31,7 @@ def spas_sage_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causa
     if scale is None:
         scale = 1.0 / (headdim ** 0.5)
 
-    assert headdim in [64, 128], "headdim should be in [64, 96, 128]."
+    assert headdim in [64, 128], "headdim should be in [64, 128]. For other headdim, you can use padding and specify the softmax scale."
 
     pvthreshd = hyperparameter_check(pvthreshd, q.size(-3), q.device)
 
@@ -74,7 +74,7 @@ def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_caus
     if scale is None:
         scale = 1.0 / (headdim ** 0.5)
 
-    assert headdim in [64, 128], "headdim should be in [64, 96, 128]."
+    assert headdim in [64, 128], "headdim should be in [64, 128]. For other headdim, you can use padding and specify the softmax scale."
 
     pvthreshd = hyperparameter_check(pvthreshd, q.size(-3), q.device)
 

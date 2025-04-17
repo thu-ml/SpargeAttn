@@ -1,6 +1,14 @@
+torch
+torchvision
 transformers
 diffusers
+opencv-python
 einops
 protobuf
 sentencepiece
 ninja
+accelerate
+numpy
+gradio
+imageio
+imageio-ffmpeg
