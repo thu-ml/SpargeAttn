@@ -5,16 +5,8 @@ from diffusers.models import CogVideoXTransformer3DModel
 import argparse
 from tqdm import tqdm
 
-# Import the new setup function and RLSAttn (ensure rls_attn.py is found)
 from modify_model.modify_cogvideo import set_rls_attn_cogvideox # Corrected import
-# RLSAttn itself is used internally by set_rls_attn_cogvideox, no direct import needed here
 
-# Remove SAGE-specific imports if no longer needed
-# from spas_sage_attn.autotune import (
-#     extract_sparse_attention_state_dict,
-#     load_sparse_attention_state_dict,
-# )
-# from modify_model.modify_cogvideo import set_spas_sage_attn_cogvideox # No longer needed
 
 prompt_path = "evaluate/datasets/video/prompts.txt"
 
