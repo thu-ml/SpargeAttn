@@ -1,17 +1,13 @@
 # Sparge Attention
-This repository provides the official implementation of SpargeAttn.
+The official implementation of [SpargeAttn](https://arxiv.org/abs/2502.18137), a universal sparse attention accelerating language, image, and video models.
 
-<div align="center"> 
-<h2>SpargeAttn: Accurate Sparse Attention Accelerating Any Model Inference </h2>
-<a href="https://huggingface.co/papers/2502.18137"><img src="https://img.shields.io/static/v1?label=Daily papers&message=HuggingFace&color=yellow"></a>
-<a href='https://arxiv.org/abs/2502.18137'><img src='https://img.shields.io/badge/arXiv-2502.15894-b31b1b.svg'></a> &nbsp;
-</div>
+<div align="center"> <h2>SpargeAttn: Accurate Sparse Attention Accelerating Any Model Inference</h2> <a href="https://huggingface.co/papers/2502.18137"> <img src="https://img.shields.io/static/v1?label=Daily%20papers&message=HuggingFace&color=yellow" alt="Daily papers: HuggingFace"> </a> <a href="https://arxiv.org/abs/2502.18137"> <img src="https://img.shields.io/badge/arXiv-2502.18137-b31b1b.svg" alt="arXiv:2502.18137"> </a> </div> 
 
 <div align="center">
     <a href="https://jt-zhang.github.io/" target="_blank">Jintao Zhang</a><sup></sup> | 
     <a href="https://xiang-cd.github.io/cv" target="_blank">Chendong Xiang</a><sup></sup> | 
-    <a href="" target="_blank">Haofeng Huang</a><sup></sup> | 
-    <a href="" target="_blank">Haocheng Xi</a><sup></sup>|
+    <a href="https://github.com/jason-huang03" target="_blank">Haofeng Huang</a><sup></sup> | 
+    <a href="https://haochengxi.github.io/" target="_blank">Haocheng Xi</a><sup></sup>|
     <a href="" target="_blank">Jia Wei</a><sup></sup> | 
     <a href="https://ml.cs.tsinghua.edu.cn/~jun/index.shtml" target="_blank">Jun Zhu</a><sup></sup> |
     <a href="https://ml.cs.tsinghua.edu.cn/~jianfei" target="_blank">Jianfei Chen</a><sup></sup>
@@ -19,13 +15,19 @@ This repository provides the official implementation of SpargeAttn.
 
 <!-- Jintao Zhang, Chendong Xiang, Haofeng Huang, Haocheng Xi, Jia Wei, Jun Zhu, Jianfei Chen -->
 
+<br>
+
 <p align="center">
-<img src="./assets/speed_comparison.png" width="85%" alt="speed comparison.">
+<img src="./assets/speed_comparison.png" width="81%" alt="speed comparison.">
 </p>
 
 <p align="center">
-<img src="./assets/overview.png" width="93%" alt="overview.">
+<img src="./assets/overview.png" width="90%" alt="overview.">
 </p>
+
+## Project Updates
+- [2025-05-02]: 🎉SpargeAttn and [SageAttention2](https://github.com/thu-ml/SageAttention) are accepted by ICML 2025!
+- [2025-01-24]: 🎉[SageAttention](https://github.com/thu-ml/SageAttention) is accepted by ICLR 2025! 
 
 ## Installation
 ### Base environment
@@ -40,10 +42,8 @@ This repository provides the official implementation of SpargeAttn.
 ### Install Package
 
 ```bash
-# only install sparge attention
+pip install ninja   # for parallel compilation
 python setup.py install   # or pip install -e .
-# if want to try examples, install other packages
-pip install -r requirements.txt 
 ```
 
 
@@ -63,13 +63,12 @@ Tuning:
 python evaluate/cogvideo_example.py  --use_spas_sage_attn --model_out_path evaluate/models_dict/CogVideoX-2b_0.06_0.07.pt --tune
 
 # parallel tuning, this will use all gpu available on the machine 
-# do hyperparameter tuning with head level parallel
-# NOTE: this will use more GPU vram in the main process
 python evaluate/cogvideo_example.py  --use_spas_sage_attn --model_out_path evaluate/models_dict/CogVideoX-2b_0.06_0.07.pt --tune --parallel_tune
 ```
 
 Inference:  
 ```bash
+# `--compile` is optional and will slow the first time inference.
 python evaluate/cogvideo_example.py  --use_spas_sage_attn --model_out_path evaluate/models_dict/CogVideoX-2b_0.06_0.07.pt --compile
 ```
 
@@ -83,10 +82,13 @@ We provide pre-tuned hyper-parameters `CogVideoX-2b_0.06_0.07.pt` that allow run
 The tuning and inference usage is similar to CogVideoX.
 
 ### Supported models
-Here’s a list of the model modifications we’ve implemented so far. Our approach is universal, and we warmly welcome contributions! Feel free to submit a pull request to support more models. 🚀
+Here’s a list of the tuned models so far, go to [hugginface](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo) to see all tuned ckpt. 
+Our approach is universal, and we warmly welcome contributions! Feel free to submit a pull request to support more models. 🚀
+
 | model name | example script | tuned ckpt |
 | ---- | ---- | ---- |
-| CogVideoX-2b | evaluate/cogvideo_example.py | evaluate/models_dict/CogVideoX-2b_0.06_0.07.pt 
+| CogVideoX-2b | evaluate/cogvideo_example.py | [link](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo/blob/main/cogvideox-2b/CogVideoX-2b_0.06_0.07.pt)
+| want2v-1.3B  | evaluate/wan_example.py | [link](https://huggingface.co/Xiang-cd/sparge-attention-model-zoo/tree/main/want2v-1.3B)
 | Flux  | evaluate/flux_example.py  | TBD 
 
 
@@ -121,30 +123,24 @@ Here’s a list of the model modifications we’ve implemented so far. Our appro
 ## Citation
 **If you use this code or find our work valuable, please cite:**
 ```
-@misc{zhang2025spargeattn,
-      title={SpargeAttn: Accurate Sparse Attention Accelerating Any Model Inference}, 
-      author={Jintao Zhang and Chendong Xiang and Haofeng Huang and Jia Wei and Haocheng Xi and Jun Zhu and Jianfei Chen},
-      year={2025},
-      eprint={2502.18137},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2502.18137}, 
+@inproceedings{zhang2025spargeattn,
+  title={Spargeattn: Accurate sparse attention accelerating any model inference},
+  author={Zhang, Jintao and Xiang, Chendong and Huang, Haofeng and Wei, Jia and Xi, Haocheng and Zhu, Jun and Chen, Jianfei},
+  booktitle={International Conference on Machine Learning (ICML)},
+  year={2025}
 }
 
 @inproceedings{zhang2025sageattention,
-      title={SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration}, 
-      author={Zhang, Jintao and Wei, Jia and Zhang, Pengle and Zhu, Jun and Chen, Jianfei},
-      booktitle={International Conference on Learning Representations (ICLR)},
-      year={2025}
+  title={SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration}, 
+  author={Zhang, Jintao and Wei, Jia and Zhang, Pengle and Zhu, Jun and Chen, Jianfei},
+  booktitle={International Conference on Learning Representations (ICLR)},
+  year={2025}
 }
 
-@misc{zhang2024sageattention2,
-      title={SageAttention2: Efficient Attention with Thorough Outlier Smoothing and Per-thread INT4 Quantization}, 
-      author={Jintao Zhang and Haofeng Huang and Pengle Zhang and Jia Wei and Jun Zhu and Jianfei Chen},
-      year={2024},
-      eprint={2411.10958},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2411.10958}, 
+@inproceedings{zhang2024sageattention2,
+  title={Sageattention2: Efficient attention with thorough outlier smoothing and per-thread int4 quantization},
+  author={Zhang, Jintao and Huang, Haofeng and Zhang, Pengle and Wei, Jia and Zhu, Jun and Chen, Jianfei},
+  booktitle={International Conference on Machine Learning (ICML)},
+  year={2025}
 }
 ```
