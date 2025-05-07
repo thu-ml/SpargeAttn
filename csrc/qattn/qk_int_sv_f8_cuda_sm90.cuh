@@ -24,6 +24,17 @@
 #include "../math.cuh"
 #include "attn_utils.cuh"
 
+#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 900))
+#define SM90_ENABLED
+#endif
+
+#if defined(__CUDA_ARCH__)
+#define RUNTIME_ASSERT(x) __brkpt()
+#else
+#include <assert.h>
+#define RUNTIME_ASSERT(x) assert(0 && x)
+#endif
+
 template <int BlockMajorSize, int BlockMinorSize, bool swizzle=true, CUtensorMapL2promotion_enum promotion_mode=CU_TENSOR_MAP_L2_PROMOTION_NONE, typename T>
 CUtensorMap create_tensor_map_4D(T* gmem_ptr, int d1, int d2, int d3, int d4, int stride1, int stride2, int stride3)
 {
@@ -49,6 +60,8 @@ CUtensorMap create_tensor_map_4D(T* gmem_ptr, int d1, int d2, int d3, int d4, in
   return tma_map;
 }
 
+
+#ifdef SM90_ENABLED
 __device__ __forceinline__ void init_barrier(uint64_t* bar, int thread_count)
 {
   uint32_t bar_ptr = static_cast<uint32_t>(__cvta_generic_to_shared(bar)); 
@@ -127,6 +140,36 @@ __device__ __forceinline__ void arrive(uint64_t* bar)
     : "memory"
   );
 }
+#else
+__device__ __forceinline__ void init_barrier(uint64_t* bar, int thread_count){
+  RUNTIME_ASSERT("Unsupported CUDA architecture for init_barrier instruction");
+}
+
+template <uint32_t bytes>
+__device__ __forceinline__ void expect_bytes(uint64_t* bar){
+  RUNTIME_ASSERT("Unsupported CUDA architecture for expect_bytes instruction");
+}
+
+template <typename T>
+__device__ __forceinline__ void load_async_4D(T* dst, void const* src_tma_map, uint64_t* bar, int s0, int s1, int s2, int s3){
+  RUNTIME_ASSERT("Unsupported CUDA architecture for load_async_4D instruction");
+}
+
+template <typename T>
+__device__ __forceinline__ void store_async_4D(void const* dst_tma_map, T* src, int global_token_idx, int global_head_idx, int global_batch_idx){
+  RUNTIME_ASSERT("Unsupported CUDA architecture for store_async_4D instruction");
+}
+
+__device__ __forceinline__ void wait(uint64_t* bar, int kPhaseBit){
+  RUNTIME_ASSERT("Unsupported CUDA architecture for wait instruction");
+}
+
+template <uint32_t count = 1>
+__device__ __forceinline__ void arrive(uint64_t* bar){
+  RUNTIME_ASSERT("Unsupported CUDA architecture arrive instruction");
+}
+    
+#endif
 
 template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t NUM_THREADS, uint32_t head_dim, QuantGranularity Q_GRAN, QuantGranularity K_GRAN, PVThresholdMode pv_threashold_mode, typename DTypeOut, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false>
 __global__ void qk_int8_sv_f8_attn_kernel(const __grid_constant__ CUtensorMap tensorMapQ, 

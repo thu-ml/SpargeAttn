@@ -18,6 +18,17 @@
 #include <cuda.h>
 
 namespace wgmma{
+#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 900))
+#define SM90_ENABLED
+#endif
+
+#if defined(__CUDA_ARCH__)
+#define RUNTIME_ASSERT(x) __brkpt()
+#else
+#include <assert.h>
+#define RUNTIME_ASSERT(x) assert(0 && x)
+#endif
+
 __device__ __forceinline__ uint64_t matrix_descriptor_encode(uint64_t x) { return (((x) & 0x3FFFF) >> 0x4); }
 
 template <int stride, typename T>
@@ -33,21 +44,34 @@ __device__ uint64_t make_smem_desc(T* ptr) {
 }
 
 __device__ __forceinline__ void warpgroup_arrive() {
+#ifdef SM90_ENABLED
     asm volatile("wgmma.fence.sync.aligned;\n" ::: "memory");
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma.fence instruction");
+#endif
 }
 
 __device__ __forceinline__ void warpgroup_commit_batch() {
+#ifdef SM90_ENABLED
     asm volatile("wgmma.commit_group.sync.aligned;\n" ::: "memory");
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma.commit_group instruction");
+#endif
 }
 
 template <int N>
 __device__ __forceinline__ void warpgroup_wait() {
+#ifdef SM90_ENABLED
     static_assert(N >= 0 && N <= 7, "WGMMA wait: N must be in range [0, 7]");
     asm volatile("wgmma.wait_group.sync.aligned %0;\n" ::"n"(N) : "memory");
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma.wait_group instruction");
+#endif
 }
 
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n128k16_f16f16f32(float d[][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_a = make_smem_desc<BK*2>(&sA[0]);
     uint64_t desc_b = make_smem_desc<BK*2>(&sB[0]);
     asm volatile(
@@ -75,10 +99,14 @@ __device__ __forceinline__ void wgmma_m64n128k16_f16f16f32(float d[][8], T* sA, 
             "+f"(d[7][0]), "+f"(d[7][1]), "+f"(d[7][2]), "+f"(d[7][3]), "+f"(d[7][4]), "+f"(d[7][5]), "+f"(d[7][6]), "+f"(d[7][7])
         : "l"(desc_a), "l"(desc_b), "n"(int32_t(ScaleD)), "n"(int32_t(ScaleA)),
             "n"(int32_t(ScaleB)), "n"(int32_t(TransA)), "n"(int32_t(TransB)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n128k16_f16f16f32 instruction");
+#endif
 }
 
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n64k16_f16f16f32(float d[][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_a = make_smem_desc<BK*2>(&sA[0]);
     uint64_t desc_b = make_smem_desc<BK*2>(&sB[0]);
     asm volatile(
@@ -98,10 +126,14 @@ __device__ __forceinline__ void wgmma_m64n64k16_f16f16f32(float d[][8], T* sA, T
             "+f"(d[3][0]), "+f"(d[3][1]), "+f"(d[3][2]), "+f"(d[3][3]), "+f"(d[3][4]), "+f"(d[3][5]), "+f"(d[3][6]), "+f"(d[3][7])
         : "l"(desc_a), "l"(desc_b), "n"(int32_t(ScaleD)), "n"(int32_t(ScaleA)),
             "n"(int32_t(ScaleB)), "n"(int32_t(TransA)), "n"(int32_t(TransB)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n64k16_f16f16f32 instruction");
+#endif
 }
 
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n128k16_f16f16f32(float d[][8], uint32_t RA[], T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_b = make_smem_desc<BK*2>(&sB[0]);
     asm volatile(
         "{\n"
@@ -129,10 +161,14 @@ __device__ __forceinline__ void wgmma_m64n128k16_f16f16f32(float d[][8], uint32_
         :   "r"(RA[0]), "r"(RA[1]), "r"(RA[2]), "r"(RA[3]),
             "l"(desc_b), "n"(int32_t(ScaleD)), "n"(int32_t(ScaleA)),
             "n"(int32_t(ScaleB)), "n"(int32_t(TransB)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n128k16_f16f16f32 instruction");
+#endif
 }
 
 template<int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n64k16_f16f16f32(float d[][8], uint32_t RA[], T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_b = make_smem_desc<BK*2>(&sB[0]);
     asm volatile(
         "{\n"
@@ -152,10 +188,14 @@ __device__ __forceinline__ void wgmma_m64n64k16_f16f16f32(float d[][8], uint32_t
         :   "r"(RA[0]), "r"(RA[1]), "r"(RA[2]), "r"(RA[3]),
             "l"(desc_b), "n"(int32_t(ScaleD)), "n"(int32_t(ScaleA)),
             "n"(int32_t(ScaleB)), "n"(int32_t(TransB)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n64k16_f16f16f32 instruction");
+#endif
 }
 
 template<int ScaleD, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n64k32_f8f8f32(float d[][8], uint32_t RA[], T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_b = make_smem_desc<BK>(&sB[0]);
     asm volatile(
         "{\n"
@@ -176,10 +216,14 @@ __device__ __forceinline__ void wgmma_m64n64k32_f8f8f32(float d[][8], uint32_t R
         :   "r"(RA[0]), "r"(RA[1]), "r"(RA[2]), "r"(RA[3]),
             "l"(desc_b), "n"(int32_t(ScaleD)),
             "n"(1), "n"(1));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n64k32_f8f8f32 instruction");
+#endif
 }
 
 template<int ScaleD, int BK, typename T>
 __device__ __forceinline__ void wgmma_m64n128k32_f8f8f32(float d[][8], uint32_t RA[], T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_b = make_smem_desc<BK>(&sB[0]);
     asm volatile(
         "{\n"
@@ -208,10 +252,14 @@ __device__ __forceinline__ void wgmma_m64n128k32_f8f8f32(float d[][8], uint32_t 
         :   "r"(RA[0]), "r"(RA[1]), "r"(RA[2]), "r"(RA[3]),
             "l"(desc_b), "n"(int32_t(ScaleD)),
             "n"(1), "n"(1));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n128k32_f8f8f32 instruction");
+#endif
 }
 
 template<int ScaleD, int BK, typename T>
 __device__ void wgmma_m64n128k32_s8s8s32(int32_t d[][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_a = make_smem_desc<BK>(&sA[0]);
     uint64_t desc_b = make_smem_desc<BK>(&sB[0]);
     asm volatile(
@@ -238,10 +286,14 @@ __device__ void wgmma_m64n128k32_s8s8s32(int32_t d[][8], T* sA, T* sB) {
           "+r"(d[6][0]), "+r"(d[6][1]), "+r"(d[6][2]), "+r"(d[6][3]), "+r"(d[6][4]), "+r"(d[6][5]), "+r"(d[6][6]), "+r"(d[6][7]),
           "+r"(d[7][0]), "+r"(d[7][1]), "+r"(d[7][2]), "+r"(d[7][3]), "+r"(d[7][4]), "+r"(d[7][5]), "+r"(d[7][6]), "+r"(d[7][7])
         : "l"(desc_a), "l"(desc_b), "n"(int32_t(ScaleD)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n128k32_s8s8s32 instruction");
+#endif
 }
 
 template<int ScaleD, int BK, typename T>
 __device__ void wgmma_m64n64k32_s8s8s32(int32_t d[][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     uint64_t desc_a = make_smem_desc<BK>(&sA[0]);
     uint64_t desc_b = make_smem_desc<BK>(&sB[0]);
     asm volatile(
@@ -260,10 +312,14 @@ __device__ void wgmma_m64n64k32_s8s8s32(int32_t d[][8], T* sA, T* sB) {
           "+r"(d[2][0]), "+r"(d[2][1]), "+r"(d[2][2]), "+r"(d[2][3]), "+r"(d[2][4]), "+r"(d[2][5]), "+r"(d[2][6]), "+r"(d[2][7]),
           "+r"(d[3][0]), "+r"(d[3][1]), "+r"(d[3][2]), "+r"(d[3][3]), "+r"(d[3][4]), "+r"(d[3][5]), "+r"(d[3][6]), "+r"(d[3][7])
         : "l"(desc_a), "l"(desc_b), "n"(int32_t(ScaleD)));
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_m64n64k32_s8s8s32 instruction");
+#endif
 }
 
 template<int WGMMA_N, int ScaleD, int ScaleA, int ScaleB, int TransA, int TransB, int BK, typename DTypeIn, typename T>
 __device__ __forceinline__ void wgmma_f16f16f32(float d[WGMMA_N/16][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     static_assert(std::is_same<DTypeIn, half>::value);
 
     static_assert(WGMMA_N == 128 || WGMMA_N == 64);
@@ -273,10 +329,14 @@ __device__ __forceinline__ void wgmma_f16f16f32(float d[WGMMA_N/16][8], T* sA, T
     else if constexpr (WGMMA_N == 64) {
         wgmma_m64n64k16_f16f16f32<ScaleD, ScaleA, ScaleB, TransA, TransB, BK>(d, sA, sB);
     }
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_f16f16f32 instruction");
+#endif
 }
 
 template<int WGMMA_N, int ScaleD, int BK, typename T>
 __device__ __forceinline__ void wgmma_s8s8s32(int32_t d[WGMMA_N/16][8], T* sA, T* sB) {
+#ifdef SM90_ENABLED
     static_assert(WGMMA_N == 128 || WGMMA_N == 64);
     if constexpr (WGMMA_N == 128) {
         wgmma_m64n128k32_s8s8s32<ScaleD, BK>(d, sA, sB);
@@ -284,10 +344,14 @@ __device__ __forceinline__ void wgmma_s8s8s32(int32_t d[WGMMA_N/16][8], T* sA, T
     else if constexpr (WGMMA_N == 64) {
         wgmma_m64n64k32_s8s8s32<ScaleD, BK>(d, sA, sB);
     }
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_s8s8s32 instruction");
+#endif
 }
 
 template<int WGMMA_N, int ScaleD, int BK, typename T>
 __device__ __forceinline__ void wgmma_f8f8f32(float d[][8], uint32_t* RA, T* sB) {
+#ifdef SM90_ENABLED
     static_assert(WGMMA_N == 128 || WGMMA_N == 64);
     if constexpr (WGMMA_N == 128) {
         wgmma_m64n128k32_f8f8f32<ScaleD, BK>(d, RA, sB);
@@ -295,6 +359,9 @@ __device__ __forceinline__ void wgmma_f8f8f32(float d[][8], uint32_t* RA, T* sB)
     else if constexpr (WGMMA_N == 64) {
         wgmma_m64n64k32_f8f8f32<ScaleD, BK>(d, RA, sB);
     }
+#else
+    RUNTIME_ASSERT("Unsupported CUDA architecture for wgmma_f8f8f32 instruction");
+#endif
 }
 
 } // namespace wgmma
