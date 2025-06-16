@@ -24,7 +24,7 @@ import spas_sage_attn._fused as fused
 
 
 @torch.compiler.disable
-def spas_sage_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, smooth_k=True, simthreshd1=0.3, cdfthreshd=0.96, pvthreshd=20, attention_sink=False, tensor_layout="HND", output_dtype=torch.float16, return_sparsity=False):
+def spas_sage_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, smooth_k=True, simthreshd1=0.6, cdfthreshd=0.98, pvthreshd=50, attention_sink=False, tensor_layout="HND", output_dtype=torch.float16, return_sparsity=False):
     assert tensor_layout in ['HND', 'NHD']
     if tensor_layout == 'NHD':
         q, k, v = map(lambda t: rearrange(t, '... L H D -> ... H L D'), (q, k, v))
@@ -67,7 +67,7 @@ def spas_sage_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causa
         return o
 
 @torch.compiler.disable
-def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, smooth_k=True, simthreshd1=0.3, cdfthreshd=0.96, pvthreshd=20, attention_sink=False, tensor_layout="HND", output_dtype=torch.float16, return_sparsity=False):
+def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None, smooth_k=True, simthreshd1=0.6, cdfthreshd=0.98, pvthreshd=50, attention_sink=False, tensor_layout="HND", output_dtype=torch.float16, return_sparsity=False):
     assert tensor_layout in ['HND', 'NHD']
     if tensor_layout == 'NHD':
         q, k, v = map(lambda t: rearrange(t, '... L H D -> ... H L D'), (q, k, v))
