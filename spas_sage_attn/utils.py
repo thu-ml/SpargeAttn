@@ -87,6 +87,78 @@ def block_map_lut_triton(block_map):
     return lut, valid_block_num
 
 @triton.jit
+def qk_quantize(
+    # Pointers
+    x_ptr,
+    xm_ptr,
+    x_quant_ptr,
+    scale_ptr,
+    # Constexpr dimensions
+    N: tl.constexpr,
+    D: tl.constexpr,
+    BS: tl.constexpr,
+    fuse_mean: tl.constexpr
+):
+    """
+    Triton kernel to perform per-block quantization of a tensor X to int8.
+    It loads a block of X, optionally subtracts a mean vector, then calculates
+    a scaling factor for the block and quantizes the data to int8.
+
+    Grid: (B, H, NB)
+        B: Batch size
+        H: Number of heads
+        NB: Number of blocks in the N dimension (N // BS)
+    """
+    # 1. Get program IDs to identify the current block
+    b, h, nb = tl.program_id(0), tl.program_id(1), tl.program_id(2)
+    B, H, NB = tl.num_programs(0), tl.num_programs(1), tl.num_programs(2)
+
+    # 2. Calculate pointers for the input block X
+    block_offset = b * H * N * D + h * N * D + nb * BS * D
+    x_ptrs = x_ptr + block_offset + tl.arange(0, BS)[:, None] * D + tl.arange(0, D)[None, :]
+    
+    # Create a mask to handle the last block if N is not a multiple of BS
+    xmask = (nb * BS + tl.arange(0, BS)[:, None]) < N
+    
+    # Load the input block
+    x = tl.load(x_ptrs, mask=xmask, other=0.0)
+
+    # 3. (Optional) Subtract the mean if fuse_mean is enabled
+    if fuse_mean:
+        xm_ptrs = xm_ptr + b * H * D + h * D + tl.arange(0, D)
+        x_mean = tl.load(xm_ptrs)
+        x -= x_mean
+        # Re-apply mask to zero out padded values after subtraction
+        x = tl.where(xmask, x, 0.0)
+
+    # 4. Perform quantization
+    # Convert to float32 for stable calculations
+    x_fp32 = x.to(tl.float32)
+
+    # Calculate the scale: max(abs(x)) / 127.0
+    # The scale is per-block
+    scale = tl.max(tl.abs(x_fp32)) / 127.0
+    # Add a small epsilon to avoid division by zero
+    scale += 1e-7
+
+    # Quantize to int8: (x / scale) and round to nearest integer
+    x_int8 = x_fp32 / scale
+    # Round to nearest: add 0.5 for positive, -0.5 for negative
+    x_int8 += 0.5 * tl.where(x_int8 >= 0, 1, -1)
+    x_int8 = x_int8.to(tl.int8)
+
+    # 5. Calculate output pointers and store the results
+    # Pointers for the quantized output tensor
+    x_quant_ptrs = x_quant_ptr + block_offset + tl.arange(0, BS)[:, None] * D + tl.arange(0, D)[None, :]
+    # Pointer for the scale value of this block
+    scale_ptrs = scale_ptr + b * H * NB + h * NB + nb
+
+    # Store the quantized int8 values
+    tl.store(x_quant_ptrs, x_int8, mask=xmask)
+    # Store the scale value
+    tl.store(scale_ptrs, scale)
+
+@triton.jit
 def triton_bmm_pool_sim_simmean_fuse_quant(
     x_ptr,
     xm_ptr,
@@ -178,6 +250,22 @@ def get_pool_sim_triton_simmean(x, block_size, simthreshd1):
     # Launch kernel
     triton_bmm_pool_sim_simmean[grid](x, pool, sim_blocks, simthreshd1, N=N, D=D, BS=block_size)
     return pool, sim_blocks
+ 
+#todo(xingyang): wrapper for tensor quantization
+def get_quant(x, x_mean, block_size):
+    x = x.contiguous()
+    B, H, N, D = x.shape
+    nblock = (N + block_size - 1) // block_size
+    x_quant = torch.empty(x.shape, device=x.device, dtype=torch.int8)
+    x_scale = torch.empty((B, H, nblock), device=x.device, dtype=torch.float32)
+    grid = (B, H, nblock)
+    qk_quantize[grid](x, x_mean, x_quant, x_scale, N=N, D=D, BS=block_size, fuse_mean=(True if x_mean is not None else False))
+    return x_quant, x_scale
+
+def get_vanilla_qk_quant(q, k, km=None, BLKQ=128, BLKK=64):
+    q_int8, q_scale = get_quant(q, None, BLKQ)
+    k_int8, k_scale = get_quant(k, km, BLKK)
+    return q_int8, q_scale, k_int8, k_scale
 
 def get_pool_sim_triton_simmean_fuse_quant(x, x_mean, block_size, simthreshd1):
     x = x.contiguous()
