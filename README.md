@@ -55,6 +55,17 @@ python setup.py install   # or pip install -e .
 
 
 ## Usage Examples
+
+## Sparge+SageAttention with Any Block-Sparse Pattern
+
+```python
+from spas_sage_attn import block_sparse_sage2_attn_cuda
+
+block_sparse_sage2_attn_cuda(q, k, v, mask_id=None, dropout_p=0.0, scale=None, smooth_k=True, pvthreshd=50, attention_sink=False, tensor_layout="HND", output_dtype=torch.float16, return_sparsity=False):
+```
+
+In this API, we support computing $S=QK^T$ in any block sparse pattern per attention head. And we compute $PV$ multiplication with further acceleration, thanks to the threshold judgement policy. Specifically, the attention mask per head, `mask_id`, is of shape `(batch_size, num_qo_heads, qo_seq_len // BLOCK_M, kv_seq_len // BLOCK_N)`. Currently, the supported block size is aligned to that of Sparge Attention, which is (128, 64).
+
 ## A Simple Usage Without Tuning for Any Model
 ```python
 from spas_sage_attn import spas_sage2_attn_meansim_cuda
