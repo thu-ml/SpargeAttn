@@ -22,7 +22,6 @@
 #include <cuda_fp8.h>
 #include <cuda_runtime.h>
 #include <cuda/pipeline>
-#include <stdio.h>
 #include <assert.h>
 
 #if (__CUDACC_VER_MAJOR__ * 10000 + __CUDACC_VER_MINOR__ * 100 >= 120400)
@@ -34,7 +33,7 @@
 #if defined(__CUDA_ARCH__)
 #define RUNTIME_ASSERT(x) __brkpt()
 #else
-#define RUNTIME_ASSERT(x) printf("%s\n",x);exit(-1)
+//#include <assert.h>
 #define RUNTIME_ASSERT(x) assert(0 && x)
 //#define RUNTIME_ASSERT(x) ((void)0)
 #endif

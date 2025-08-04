@@ -19,7 +19,6 @@
 #include <cuda_bf16.h>
 #include <cuda_fp8.h>
 #include <cassert>
-#include <stdio.h>
 
 #include "../wgmma.cuh"
 #include "../math.cuh"
@@ -33,13 +32,9 @@
 #if defined(__CUDA_ARCH__)
 #define RUNTIME_ASSERT(x) __brkpt()
 #else
-<<<<<<< HEAD
-#define RUNTIME_ASSERT(x) printf("%s\n",x);exit(-1)
-=======
 //#include <assert.h>
 #define RUNTIME_ASSERT(x) assert(0 && x)
 //#define RUNTIME_ASSERT(x) ((void)0)
->>>>>>> upstream/main
 #endif
 
 template <int BlockMajorSize, int BlockMinorSize, bool swizzle=true, CUtensorMapL2promotion_enum promotion_mode=CU_TENSOR_MAP_L2_PROMOTION_NONE, typename T>
