@@ -17,6 +17,7 @@
 #pragma once
 #include <cuda.h>
 #include <stdio.h>
+#include <assert.h>
 
 namespace wgmma{
 #if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 900))

@@ -40,7 +40,7 @@
 #define MMA_SV_K 32
 
 template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, DataType DTypeQK, QuantGranularity Q_GRAN, QuantGranularity K_GRAN,
-        typename DTypeSVAccum = float, bool use_inst_buffer = false, PVThresholdMode pv_threashold_mode, typename DTypeOut = half, ComputeUnit DenominatorAccumUnit, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false>
+        typename DTypeSVAccum = float, bool use_inst_buffer = false, bool use_pv_fp16_accu=false, PVThresholdMode pv_threashold_mode, typename DTypeOut = half, ComputeUnit DenominatorAccumUnit, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false>
 __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, int8_t *__restrict__ K, int8_t *__restrict__ V, DTypeOut *__restrict__ O, int32_t *__restrict__ PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
                       float *__restrict__ Q_scale, float *__restrict__ K_scale, float *__restrict__ V_scale,
                       const uint32_t qo_len, const uint32_t kv_len, const uint32_t num_kv_groups,
@@ -379,8 +379,14 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
         }
         else
         {
-          compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
-            smem_V, RS_f8, RO, d);   
+          if constexpr(!use_pv_fp16_accu){
+            compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+              smem_V, RS_f8, RO, d);   
+          }
+          else{
+            compute_fp8_sv_inst_buf_fp16_accu<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+              smem_V, RS_f8, RO, d);
+          }
         }
       }
     }
@@ -432,8 +438,14 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
       }
       else
       {
-        compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
-          smem_V, RS_f8, RO, d);   
+        if constexpr(!use_pv_fp16_accu){
+          compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+            smem_V, RS_f8, RO, d);   
+        }
+        else{
+          compute_fp8_sv_inst_buf_fp16_accu<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+            smem_V, RS_f8, RO, d);
+        }
       }
     }
 
@@ -530,8 +542,14 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
     }
     else
     {
-      compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
-        smem_V, RS_f8, RO, d);
+      if constexpr(!use_pv_fp16_accu){
+        compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+          smem_V, RS_f8, RO, d);   
+      }
+      else{
+        compute_fp8_sv_inst_buf_fp16_accu<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+          smem_V, RS_f8, RO, d);
+      }
     }
 
     __syncthreads();
@@ -615,8 +633,14 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
     }
     else
     {
-      compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
-        smem_V, RS_f8, RO, d);
+      if constexpr(!use_pv_fp16_accu){
+        compute_fp8_sv_inst_buf<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+          smem_V, RS_f8, RO, d);   
+      }
+      else{
+        compute_fp8_sv_inst_buf_fp16_accu<num_warps_q, num_warps_k, num_tiles_q, num_tiles_k, num_tiles_v, swizzle_mode_V, V_SMEM_STRIDE / PACK_SIZE_V>(
+          smem_V, RS_f8, RO, d);
+      }
     }
 
     __syncthreads();
@@ -730,7 +754,7 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
   }
 }
 
-template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, uint32_t qk_quant_gran, typename DTypePVAccum, bool use_inst_buffer, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count>
+template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, uint32_t qk_quant_gran, typename DTypePVAccum, bool use_inst_buffer, bool use_pv_fp16_accu, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count>
 void SpargeAttentionSM89Dispatched(
   int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, DTypeOut* O,
   int32_t* PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
@@ -746,7 +770,7 @@ void SpargeAttentionSM89Dispatched(
 
   //                                     smem_Q                                     smem_K                            smem_V                     smem_O
   size_t smem_max = std::max(CTA_Q * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t), CTA_Q * head_dim * sizeof(half));
-  auto kernel_func = qk_int_sv_f8_block_sparse_attn_kernel<CTA_Q, CTA_K, WARP_Q, WARP_K, head_dim, DataType::kInt8, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), DTypePVAccum, use_inst_buffer, static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, ComputeUnit::kCudaCore, mask_mode, fuse_v_scale, return_pv_count>;
+  auto kernel_func = qk_int_sv_f8_block_sparse_attn_kernel<CTA_Q, CTA_K, WARP_Q, WARP_K, head_dim, DataType::kInt8, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), DTypePVAccum, use_inst_buffer, use_pv_fp16_accu, static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, ComputeUnit::kCudaCore, mask_mode, fuse_v_scale, return_pv_count>;
 
   cudaFuncSetAttribute(kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_max);
 

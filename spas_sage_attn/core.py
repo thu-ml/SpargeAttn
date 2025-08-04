@@ -164,7 +164,8 @@ def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_caus
     fused.transpose_pad_permute_cuda(v, v_transposed_permutted, 1)
     v_fp8 = torch.empty(v_transposed_permutted.shape, dtype=torch.float8_e4m3fn, device=v.device)
     v_scale = torch.empty((b, h_kv, head_dim), dtype=torch.float32, device=v.device)
-    fused.scale_fuse_quant_cuda(v_transposed_permutted, v_fp8, v_scale, kv_len, 448.0, 1)
+    #fused.scale_fuse_quant_cuda(v_transposed_permutted, v_fp8, v_scale, kv_len, 448.0, 1)
+    fused.scale_fuse_quant_cuda(v_transposed_permutted, v_fp8, v_scale, kv_len, 2.25, 1)
 
     _is_causal = 1 if is_causal else 0
     o = torch.empty_like(q)

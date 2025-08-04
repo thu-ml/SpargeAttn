@@ -17,6 +17,7 @@ pv_threshold_modes = [0, 1]
 dtypes_out = ["half", "nv_bfloat16"]
 is_causals = [True, False]
 return_pv_counts = [True, False]
+use_pv_fp16_accu = [True, False]
 
 # Output directory
 output_dir = os.path.dirname(os.path.abspath(__file__))
@@ -40,13 +41,13 @@ param_list = (
 )
 
 # Generate combinations
-for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count in product(
-        head_dims, qk_quant_grans, pv_threshold_modes, dtypes_out, is_causals, return_pv_counts):
+for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count, pvacu in product(
+        head_dims, qk_quant_grans, pv_threshold_modes, dtypes_out, is_causals, return_pv_counts, use_pv_fp16_accu):
     if ret_pv_count and pv_mode == 0:
         continue
     filename = (
         f"inst_sm89_ctaq{CTA_Q}_ctak{CTA_K}_warpq{WARP_Q}_warpk{WARP_K}"
-        f"_hd{hd}_qkg{qkg}_pvacc{DTypePVAccum}_ibuf{bool_to_int(use_inst_buffer)}"
+        f"_hd{hd}_qkg{qkg}_pvacc{DTypePVAccum}_ibuf{bool_to_int(use_inst_buffer)}_pvacum{bool_to_int(pvacu)}"
         f"_pvth{pv_mode}_o{dtype_out}_causal{bool_to_int(causal)}"
         f"_fv{bool_to_int(fuse_v_scale)}_retpvth{bool_to_int(ret_pv_count)}.cu"
     )
@@ -55,7 +56,7 @@ for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count in product(
     instantiation = (
         f"template void SpargeAttentionSM89Dispatched<"
         f"{CTA_Q}, {CTA_K}, {WARP_Q}, {WARP_K}, {hd}, {qkg}, {DTypePVAccum}, "
-        f"{str(use_inst_buffer).lower()}, {pv_mode}, {dtype_out}, "
+        f"{str(use_inst_buffer).lower()}, {str(pvacu).lower()}, {pv_mode}, {dtype_out}, "
         f"{str(causal).lower()}, {str(fuse_v_scale).lower()}, {str(ret_pv_count).lower()}"
         f">(\n{param_list.format(dtype_out=dtype_out)});"
     )
