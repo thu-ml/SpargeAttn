@@ -71,6 +71,9 @@ if __name__ == "__main__":
             torch_dtype=dtype_,
         ).to(device)
 
+        pipe.vae.enable_slicing()
+        pipe.vae.enable_tiling()
+
         pipe.enable_model_cpu_offload()
 
         for i, prompt in tqdm(enumerate(prompts[:5])):
