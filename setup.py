@@ -61,6 +61,7 @@ NVCC_FLAGS = [
     "--threads=8",
     "-Xptxas=-v",
     "-diag-suppress=174", # suppress the specific warning
+    "-Xcompiler", "-include,cassert", # fix error occurs when compiling for SM90+ with newer CUDA toolkits
 ]
 
 ABI = 1 if torch._C._GLIBCXX_USE_CXX11_ABI else 0
