@@ -173,12 +173,12 @@ __device__ __forceinline__ void arrive(uint64_t* bar){
     
 #endif
 
-template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t NUM_THREADS, uint32_t head_dim, QuantGranularity Q_GRAN, QuantGranularity K_GRAN, PVThresholdMode pv_threashold_mode, typename DTypeOut, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false>
+template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t NUM_THREADS, uint32_t head_dim, QuantGranularity Q_GRAN, QuantGranularity K_GRAN, PVThresholdMode pv_threashold_mode, typename DTypeOut, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false, bool return_lse = false>
 __global__ void qk_int8_sv_f8_attn_kernel(const __grid_constant__ CUtensorMap tensorMapQ, 
                                         const __grid_constant__ CUtensorMap tensorMapK,
                                         const __grid_constant__ CUtensorMap tensorMapV,
                                         float *__restrict__ Q_scale, float *__restrict__ K_scale, float *__restrict__ V_scale,
-                                        DTypeOut* O, int32_t *__restrict__ PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
+                                        DTypeOut* O, float *__restrict__ Lse, int32_t *__restrict__ PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
                                         uint32_t stride_bz_o, uint32_t stride_h_o, uint32_t stride_seq_o,
                                         const uint32_t qo_len, const uint32_t kv_len, const uint32_t num_kv_groups,
                                         float sm_scale)
@@ -778,11 +778,27 @@ __global__ void qk_int8_sv_f8_attn_kernel(const __grid_constant__ CUtensorMap te
       }
     }
   }
+
+  if constexpr (return_lse)
+  { 
+    // ! this only works for num_tiles_q = 2
+    static_assert(num_tiles_q == 2, "Only num_tiles_q == 2 is supported for Lse computation");
+    
+    uint32_t lse_idx = bx * CTA_Q + lane_id / 4 + 8 * (lane_id % 4) + WARP_Q * get_warp_idx_q<num_warps_q, num_warps_k>();
+    float *lse_lane_ptr = Lse + batch_id * (qo_len * num_qo_heads) + head_id * qo_len + lse_idx;
+    uint32_t fq = (lane_id % 4) / 2;
+    uint32_t k = (lane_id % 4) % 2;
+
+    if (lse_idx < qo_len)
+    {
+      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) + m[fq][k]);
+    }
+  }
 }
 
-template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t NUM_THREADS, uint32_t head_dim, uint32_t qk_quant_gran, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count>
+template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t NUM_THREADS, uint32_t head_dim, uint32_t qk_quant_gran, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count, bool return_lse>
 void SpargeAttentionSM90Dispatched(
-  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, DTypeOut* O,
+  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, DTypeOut* O, float *Lse,
   int32_t* PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
   float* Q_scale, float* K_scale, float* V_scale,
   const uint32_t batch_size, const uint32_t qo_len, const uint32_t kv_len, const uint32_t padded_kv_len, const uint32_t num_qo_heads, const uint32_t num_kv_heads,
@@ -798,7 +814,7 @@ void SpargeAttentionSM90Dispatched(
   CUtensorMap tma_map_K = create_tensor_map_4D<CTA_K, head_dim>(K, batch_size, num_kv_heads, kv_len, head_dim, stride_bz_k, stride_h_k, stride_seq_k);
   CUtensorMap tma_map_V = create_tensor_map_4D<head_dim, CTA_K>(V, batch_size, num_kv_heads, head_dim, padded_kv_len, stride_bz_v, stride_h_v, stride_d_v);
 
-  auto* kernel = qk_int8_sv_f8_attn_kernel<CTA_Q, CTA_K, NUM_THREADS, head_dim, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, mask_mode, fuse_v_scale, return_pv_count>;
+  auto* kernel = qk_int8_sv_f8_attn_kernel<CTA_Q, CTA_K, NUM_THREADS, head_dim, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, mask_mode, fuse_v_scale, return_pv_count, return_lse>;
   size_t sMemSize = CTA_Q * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t);
   cudaFuncSetAttribute(
       kernel,
@@ -813,6 +829,7 @@ void SpargeAttentionSM90Dispatched(
     K_scale,
     V_scale,
     O,
+    Lse,
     PV_Count,
     Lut,
     Valid_Block_Num,

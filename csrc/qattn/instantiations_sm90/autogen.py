@@ -14,6 +14,7 @@ pv_threshold_modes = [0, 1]
 dtypes_out = ["half", "nv_bfloat16"]
 is_causals = [True, False]
 return_pv_counts = [False, True]
+return_lses = [True, False]
 
 # Output directory
 output_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,7 @@ def bool_to_int(b):
 
 # Function parameter list
 param_list = (
-    "  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, {dtype_out}* O,\n"
+    "  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, {dtype_out}* O, float* Lse,\n"
     "  int32_t* PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,\n"
     "  float* Q_scale, float* K_scale, float* V_scale,\n"
     "  const uint32_t batch_size, const uint32_t qo_len, const uint32_t kv_len, const uint32_t padded_kv_len, const uint32_t num_qo_heads, const uint32_t num_kv_heads,\n"
@@ -37,8 +38,8 @@ param_list = (
 )
 
 # Generate combinations
-for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count in product(
-        head_dims, qk_quant_grans, pv_threshold_modes, dtypes_out, is_causals, return_pv_counts):
+for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count, ret_lse in product(
+        head_dims, qk_quant_grans, pv_threshold_modes, dtypes_out, is_causals, return_pv_counts, return_lses):
     if ret_pv_count and pv_mode == 0:
         continue
 
@@ -46,14 +47,14 @@ for hd, qkg, pv_mode, dtype_out, causal, ret_pv_count in product(
         f"inst_sm90_ctaq{CTA_Q}_ctak{CTA_K}_nt{NUM_THREADS}"
         f"_hd{hd}_qkg{qkg}_pvth{pv_mode}_o{dtype_out}"
         f"_causal{bool_to_int(causal)}_fv{bool_to_int(fuse_v_scale)}"
-        f"_retpv{bool_to_int(ret_pv_count)}.cu"
+        f"_retpv{bool_to_int(ret_pv_count)}_retlse{bool_to_int(ret_lse)}.cu"
     )
     filepath = os.path.join(output_dir, filename)
 
     instantiation = (
         f"template void SpargeAttentionSM90Dispatched<"
         f"{CTA_Q}, {CTA_K}, {NUM_THREADS}, {hd}, {qkg}, {pv_mode}, "
-        f"{dtype_out}, {str(causal).lower()}, {str(fuse_v_scale).lower()}, {str(ret_pv_count).lower()}"
+        f"{dtype_out}, {str(causal).lower()}, {str(fuse_v_scale).lower()}, {str(ret_pv_count).lower()}, {str(ret_lse).lower()}"
         f">(\n{param_list.format(dtype_out=dtype_out)});"
     )
 

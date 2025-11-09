@@ -40,8 +40,8 @@
 #define MMA_SV_K 32
 
 template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, DataType DTypeQK, QuantGranularity Q_GRAN, QuantGranularity K_GRAN,
-        typename DTypeSVAccum = float, bool use_inst_buffer = false, bool use_pv_fp16_accu=false, PVThresholdMode pv_threashold_mode, typename DTypeOut = half, ComputeUnit DenominatorAccumUnit, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false>
-__global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, int8_t *__restrict__ K, int8_t *__restrict__ V, DTypeOut *__restrict__ O, int32_t *__restrict__ PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
+        typename DTypeSVAccum = float, bool use_inst_buffer = false, bool use_pv_fp16_accu=false, PVThresholdMode pv_threashold_mode, typename DTypeOut = half, ComputeUnit DenominatorAccumUnit, MaskMode mask_mode = MaskMode::kNone, bool fuse_v_scale = false, bool return_pv_count = false, bool return_lse = false>
+__global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, int8_t *__restrict__ K, int8_t *__restrict__ V, DTypeOut *__restrict__ O, float *__restrict__ Lse, int32_t *__restrict__ PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
                       float *__restrict__ Q_scale, float *__restrict__ K_scale, float *__restrict__ V_scale,
                       const uint32_t qo_len, const uint32_t kv_len, const uint32_t num_kv_groups,
                       const uint32_t stride_bz_q, const uint32_t stride_seq_q, const uint32_t stride_h_q, 
@@ -752,11 +752,27 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
     O_lane_ptr += ((global_to_shared_copy_lines_per_warp_O * stride_seq_o) - (O_smem_iters_row * global_to_shared_line_lanes_O * PACK_SIZE_O));
     O_load_idx_lane_base += global_to_shared_copy_lines_per_warp_O;
   }
+
+  if constexpr (return_lse)
+  { 
+    // ! this only works for num_tiles_q = 2
+    static_assert(num_tiles_q == 2, "Only num_tiles_q == 2 is supported for Lse computation");
+    
+    uint32_t lse_idx = bx * CTA_Q + lane_id / 4 + 8 * (lane_id % 4) + WARP_Q * get_warp_idx_q<num_warps_q, num_warps_k>();
+    float *lse_lane_ptr = Lse + batch_id * (qo_len * num_qo_heads) + head_id * qo_len + lse_idx;
+    uint32_t fq = (lane_id % 4) / 2;
+    uint32_t k = (lane_id % 4) % 2;
+
+    if (lse_idx < qo_len)
+    {
+      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) + m[fq][k]);
+    }
+  }
 }
 
-template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, uint32_t qk_quant_gran, typename DTypePVAccum, bool use_inst_buffer, bool use_pv_fp16_accu, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count>
+template<uint32_t CTA_Q, uint32_t CTA_K, uint32_t WARP_Q, uint32_t WARP_K, uint32_t head_dim, uint32_t qk_quant_gran, typename DTypePVAccum, bool use_inst_buffer, bool use_pv_fp16_accu, uint32_t pv_threashold_mode, typename DTypeOut, bool is_causal, bool fuse_v_scale, bool return_pv_count, bool return_lse>
 void SpargeAttentionSM89Dispatched(
-  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, DTypeOut* O,
+  int8_t* Q, int8_t* K, __nv_fp8_e4m3* V, DTypeOut* O, float *Lse,
   int32_t* PV_Count, int32_t *__restrict__ Lut, int32_t *__restrict__ Valid_Block_Num, float *__restrict__ PV_Threshold,
   float* Q_scale, float* K_scale, float* V_scale,
   const uint32_t batch_size, const uint32_t qo_len, const uint32_t kv_len, const uint32_t num_qo_heads, const uint32_t num_kv_heads,
@@ -770,7 +786,7 @@ void SpargeAttentionSM89Dispatched(
 
   //                                     smem_Q                                     smem_K                            smem_V                     smem_O
   size_t smem_max = std::max(CTA_Q * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t) + CTA_K * head_dim * sizeof(int8_t), CTA_Q * head_dim * sizeof(half));
-  auto kernel_func = qk_int_sv_f8_block_sparse_attn_kernel<CTA_Q, CTA_K, WARP_Q, WARP_K, head_dim, DataType::kInt8, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), DTypePVAccum, use_inst_buffer, use_pv_fp16_accu, static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, ComputeUnit::kCudaCore, mask_mode, fuse_v_scale, return_pv_count>;
+  auto kernel_func = qk_int_sv_f8_block_sparse_attn_kernel<CTA_Q, CTA_K, WARP_Q, WARP_K, head_dim, DataType::kInt8, static_cast<QuantGranularity>(qk_quant_gran), static_cast<QuantGranularity>(qk_quant_gran), DTypePVAccum, use_inst_buffer, use_pv_fp16_accu, static_cast<PVThresholdMode>(pv_threashold_mode), DTypeOut, ComputeUnit::kCudaCore, mask_mode, fuse_v_scale, return_pv_count, return_lse>;
 
   cudaFuncSetAttribute(kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_max);
 
@@ -782,6 +798,7 @@ void SpargeAttentionSM89Dispatched(
     K,
     reinterpret_cast<int8_t*>(V), // legacy
     O,
+    Lse,
     PV_Count,
     Lut,
     Valid_Block_Num,
