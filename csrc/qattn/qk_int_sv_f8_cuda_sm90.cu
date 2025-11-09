@@ -30,7 +30,8 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_sm90(
                     int tensor_layout,
                     int is_causal,
                     int qk_quant_gran,
-                    float sm_scale)
+                    float sm_scale,
+                    bool return_lse)
 {
   CHECK_CUDA(query);
   CHECK_CUDA(key);
@@ -136,56 +137,64 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_sm90(
 
   auto output_dtype = output.scalar_type();
 
+  torch::Tensor lse = torch::empty({0});
+  if (return_lse) {
+    lse = torch::empty({batch_size, num_qo_heads, qo_len}, query.options().dtype(torch::kFloat32));
+  }
+
   DISPATCH_HEAD_DIM(head_dim, HEAD_DIM, {
     DISPATCH_CAUSAL(is_causal, IS_CAUSAL, {
       DISPATCH_QK_QUANT_GRAN(qk_quant_gran, QK_QUANT_GRAN, {
         DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FP16(output_dtype, DTypeOut, {
-          constexpr int CTA_Q = 64;
-          constexpr int CTA_K = 128;
-          constexpr int NUM_THREADS = 128;
+          DISPATCH_RETURN_LSE(return_lse, RETURN_LSE, {
+            constexpr int CTA_Q = 64;
+            constexpr int CTA_K = 128;
+            constexpr int NUM_THREADS = 128;
 
-          assert(padded_kv_len >= div_ceil(kv_len, CTA_K) * CTA_K);
+            assert(padded_kv_len >= div_ceil(kv_len, CTA_K) * CTA_K);
 
-          if constexpr (QK_QUANT_GRAN == 1)
-          {
-            CHECK_SHAPE(query_scale, batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q));
-            CHECK_SHAPE(key_scale, batch_size, num_kv_heads, div_ceil(kv_len, CTA_K));
-          }
-          else if constexpr (QK_QUANT_GRAN == 2)
-          {
-              CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32)));
-              CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K)));
-          }
-          else if constexpr (QK_QUANT_GRAN == 3)
-          {
-              CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32) * 8));
-              CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K) * 4));    
-          }
-          else
-          {
-              static_assert(QK_QUANT_GRAN == 1 || QK_QUANT_GRAN == 2 || QK_QUANT_GRAN == 3, "Unsupported quantization granularity");
-          }
+            if constexpr (QK_QUANT_GRAN == 1)
+            {
+              CHECK_SHAPE(query_scale, batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q));
+              CHECK_SHAPE(key_scale, batch_size, num_kv_heads, div_ceil(kv_len, CTA_K));
+            }
+            else if constexpr (QK_QUANT_GRAN == 2)
+            {
+                CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32)));
+                CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K)));
+            }
+            else if constexpr (QK_QUANT_GRAN == 3)
+            {
+                CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32) * 8));
+                CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K) * 4));    
+            }
+            else
+            {
+                static_assert(QK_QUANT_GRAN == 1 || QK_QUANT_GRAN == 2 || QK_QUANT_GRAN == 3, "Unsupported quantization granularity");
+            }
 
-          CHECK_SHAPE(value_scale, batch_size, num_kv_heads, head_dim);
-          
-          SpargeAttentionSM90Dispatched<CTA_Q, CTA_K, NUM_THREADS, HEAD_DIM, QK_QUANT_GRAN, 0, DTypeOut, IS_CAUSAL, true, false>(
-              reinterpret_cast<int8_t*>(query.data_ptr()),
-              reinterpret_cast<int8_t*>(key.data_ptr()),
-              reinterpret_cast<__nv_fp8_e4m3*>(value.data_ptr()),
-              reinterpret_cast<DTypeOut*>(output.data_ptr()),
-              nullptr,
-              reinterpret_cast<int32_t*>(lut.data_ptr()),
-              reinterpret_cast<int32_t*>(valid_block_num.data_ptr()),
-              nullptr,
-              reinterpret_cast<float*>(query_scale.data_ptr()),
-              reinterpret_cast<float*>(key_scale.data_ptr()),
-              reinterpret_cast<float*>(value_scale.data_ptr()),
-              batch_size, qo_len, kv_len, padded_kv_len, num_qo_heads, num_kv_heads,
-              stride_bz_q, stride_seq_q, stride_h_q,
-              stride_bz_k, stride_seq_k, stride_h_k,
-              stride_bz_v, stride_h_v, stride_d_v,
-              stride_bz_o, stride_seq_o, stride_h_o,
-              sm_scale);
+            CHECK_SHAPE(value_scale, batch_size, num_kv_heads, head_dim);
+            
+            SpargeAttentionSM90Dispatched<CTA_Q, CTA_K, NUM_THREADS, HEAD_DIM, QK_QUANT_GRAN, 0, DTypeOut, IS_CAUSAL, true, false, RETURN_LSE>(
+                reinterpret_cast<int8_t*>(query.data_ptr()),
+                reinterpret_cast<int8_t*>(key.data_ptr()),
+                reinterpret_cast<__nv_fp8_e4m3*>(value.data_ptr()),
+                reinterpret_cast<DTypeOut*>(output.data_ptr()),
+                (RETURN_LSE) ? reinterpret_cast<float*>(lse.data_ptr()) : nullptr,
+                nullptr,
+                reinterpret_cast<int32_t*>(lut.data_ptr()),
+                reinterpret_cast<int32_t*>(valid_block_num.data_ptr()),
+                nullptr,
+                reinterpret_cast<float*>(query_scale.data_ptr()),
+                reinterpret_cast<float*>(key_scale.data_ptr()),
+                reinterpret_cast<float*>(value_scale.data_ptr()),
+                batch_size, qo_len, kv_len, padded_kv_len, num_qo_heads, num_kv_heads,
+                stride_bz_q, stride_seq_q, stride_h_q,
+                stride_bz_k, stride_seq_k, stride_h_k,
+                stride_bz_v, stride_h_v, stride_d_v,
+                stride_bz_o, stride_seq_o, stride_h_o,
+                sm_scale);
+          });
         });
       });
     });
@@ -207,7 +216,8 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
                     int is_causal,
                     int qk_quant_gran,
                     float sm_scale,
-                    int return_pv_count)
+                    int return_pv_count,
+                    bool return_lse)
 {
   CHECK_CUDA(query);
   CHECK_CUDA(key);
@@ -319,62 +329,71 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
 
   auto output_dtype = output.scalar_type();
 
+  
+  torch::Tensor lse = torch::empty({0});
+  if (return_lse) {
+    lse = torch::empty({batch_size, num_qo_heads, qo_len}, query.options().dtype(torch::kFloat32));
+  }
+
   DISPATCH_HEAD_DIM(head_dim, HEAD_DIM, {
     DISPATCH_CAUSAL(is_causal, IS_CAUSAL, {
       DISPATCH_RETURN_PV_COUNT(return_pv_count, RETURN_PV_COUNT, {
         DISPATCH_QK_QUANT_GRAN(qk_quant_gran, QK_QUANT_GRAN, {
           DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FP16(output_dtype, DTypeOut, {
-            constexpr int CTA_Q = 64;
-            constexpr int CTA_K = 128;
-            constexpr int NUM_THREADS = 128;
+            DISPATCH_RETURN_LSE(return_lse, RETURN_LSE, {
+              constexpr int CTA_Q = 64;
+              constexpr int CTA_K = 128;
+              constexpr int NUM_THREADS = 128;
 
-            if constexpr (RETURN_PV_COUNT)
-            {
-              pv_count = torch::empty({batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q) * (CTA_Q / 16)}, query.options().dtype(at::ScalarType::Int));
-            }
+              if constexpr (RETURN_PV_COUNT)
+              {
+                pv_count = torch::empty({batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q) * (CTA_Q / 16)}, query.options().dtype(at::ScalarType::Int));
+              }
 
-            assert(padded_kv_len >= div_ceil(kv_len, CTA_K) * CTA_K);
+              assert(padded_kv_len >= div_ceil(kv_len, CTA_K) * CTA_K);
 
-            if constexpr (QK_QUANT_GRAN == 1)
-            {
-              CHECK_SHAPE(query_scale, batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q));
-              CHECK_SHAPE(key_scale, batch_size, num_kv_heads, div_ceil(kv_len, CTA_K));
-            }
-            else if constexpr (QK_QUANT_GRAN == 2)
-            {
-                CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32)));
-                CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K)));
-            }
-            else if constexpr (QK_QUANT_GRAN == 3)
-            {
-                CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32) * 8));
-                CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K) * 4));    
-            }
-            else
-            {
-                static_assert(QK_QUANT_GRAN == 1 || QK_QUANT_GRAN == 2 || QK_QUANT_GRAN == 3, "Unsupported quantization granularity");
-            }
+              if constexpr (QK_QUANT_GRAN == 1)
+              {
+                CHECK_SHAPE(query_scale, batch_size, num_qo_heads, div_ceil(qo_len, CTA_Q));
+                CHECK_SHAPE(key_scale, batch_size, num_kv_heads, div_ceil(kv_len, CTA_K));
+              }
+              else if constexpr (QK_QUANT_GRAN == 2)
+              {
+                  CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32)));
+                  CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K)));
+              }
+              else if constexpr (QK_QUANT_GRAN == 3)
+              {
+                  CHECK_SHAPE(query_scale, batch_size, num_qo_heads, static_cast<long>(div_ceil(qo_len, CTA_Q) * (NUM_THREADS / 32) * 8));
+                  CHECK_SHAPE(key_scale, batch_size, num_kv_heads, static_cast<long>(div_ceil(kv_len, CTA_K) * 4));    
+              }
+              else
+              {
+                  static_assert(QK_QUANT_GRAN == 1 || QK_QUANT_GRAN == 2 || QK_QUANT_GRAN == 3, "Unsupported quantization granularity");
+              }
 
-            CHECK_SHAPE(value_scale, batch_size, num_kv_heads, head_dim);
-            
-            SpargeAttentionSM90Dispatched<CTA_Q, CTA_K, NUM_THREADS, HEAD_DIM, QK_QUANT_GRAN, 1, DTypeOut, IS_CAUSAL, true, RETURN_PV_COUNT>(
-                reinterpret_cast<int8_t*>(query.data_ptr()),
-                reinterpret_cast<int8_t*>(key.data_ptr()),
-                reinterpret_cast<__nv_fp8_e4m3*>(value.data_ptr()),
-                reinterpret_cast<DTypeOut*>(output.data_ptr()),
-                (RETURN_PV_COUNT) ? reinterpret_cast<int32_t*>(pv_count.data_ptr()) : nullptr,
-                reinterpret_cast<int32_t*>(lut.data_ptr()),
-                reinterpret_cast<int32_t*>(valid_block_num.data_ptr()),
-                reinterpret_cast<float*>(pv_threshold.data_ptr()),
-                reinterpret_cast<float*>(query_scale.data_ptr()),
-                reinterpret_cast<float*>(key_scale.data_ptr()),
-                reinterpret_cast<float*>(value_scale.data_ptr()),
-                batch_size, qo_len, kv_len, padded_kv_len, num_qo_heads, num_kv_heads,
-                stride_bz_q, stride_seq_q, stride_h_q,
-                stride_bz_k, stride_seq_k, stride_h_k,
-                stride_bz_v, stride_h_v, stride_d_v,
-                stride_bz_o, stride_seq_o, stride_h_o,
-                sm_scale);
+              CHECK_SHAPE(value_scale, batch_size, num_kv_heads, head_dim);
+              
+              SpargeAttentionSM90Dispatched<CTA_Q, CTA_K, NUM_THREADS, HEAD_DIM, QK_QUANT_GRAN, 1, DTypeOut, IS_CAUSAL, true, RETURN_PV_COUNT, RETURN_LSE>(
+                  reinterpret_cast<int8_t*>(query.data_ptr()),
+                  reinterpret_cast<int8_t*>(key.data_ptr()),
+                  reinterpret_cast<__nv_fp8_e4m3*>(value.data_ptr()),
+                  reinterpret_cast<DTypeOut*>(output.data_ptr()),
+                  (RETURN_LSE) ? reinterpret_cast<float*>(lse.data_ptr()) : nullptr,
+                  (RETURN_PV_COUNT) ? reinterpret_cast<int32_t*>(pv_count.data_ptr()) : nullptr,
+                  reinterpret_cast<int32_t*>(lut.data_ptr()),
+                  reinterpret_cast<int32_t*>(valid_block_num.data_ptr()),
+                  reinterpret_cast<float*>(pv_threshold.data_ptr()),
+                  reinterpret_cast<float*>(query_scale.data_ptr()),
+                  reinterpret_cast<float*>(key_scale.data_ptr()),
+                  reinterpret_cast<float*>(value_scale.data_ptr()),
+                  batch_size, qo_len, kv_len, padded_kv_len, num_qo_heads, num_kv_heads,
+                  stride_bz_q, stride_seq_q, stride_h_q,
+                  stride_bz_k, stride_seq_k, stride_h_k,
+                  stride_bz_v, stride_h_v, stride_d_v,
+                  stride_bz_o, stride_seq_o, stride_h_o,
+                  sm_scale);
+            });
           });
         });
       });

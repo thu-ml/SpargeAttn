@@ -122,3 +122,16 @@ if (block_size == 64) {                                         \
   err_msg << "Unsupported block_size " << int(block_size);      \
   throw std::invalid_argument(err_msg.str());                   \
 }
+
+#define DISPATCH_RETURN_LSE(return_lse, RETURN_LSE, ...)        \
+if (return_lse) {                                               \
+  constexpr bool RETURN_LSE = true;                             \
+  __VA_ARGS__                                                   \
+} else if (return_lse == 0) {                                   \
+  constexpr bool RETURN_LSE = false;                            \
+  __VA_ARGS__                                                   \
+}  else {                                                       \
+  std::ostringstream err_msg;                                   \
+  err_msg << "Unsupported return_lse: " << int(return_lse);     \
+  throw std::invalid_argument(err_msg.str());                   \
+}

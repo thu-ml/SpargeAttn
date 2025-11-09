@@ -27,7 +27,8 @@ void qk_int8_sv_f16_accum_f16_block_sparse_attn_inst_buf(torch::Tensor query,
                     int tensor_layout,
                     int is_causal,
                     int qk_quant_gran,
-                    float sm_scale);
+                    float sm_scale,
+                    bool return_lse);
 
 torch::Tensor qk_int8_sv_f16_accum_f16_block_sparse_attn_inst_buf_with_pv_threshold(torch::Tensor query,
                     torch::Tensor key,
@@ -42,7 +43,8 @@ torch::Tensor qk_int8_sv_f16_accum_f16_block_sparse_attn_inst_buf_with_pv_thresh
                     int is_causal,
                     int qk_quant_gran,
                     float sm_scale,
-                    int return_pv_count);
+                    int return_pv_count,
+                    bool return_lse);
 
 void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tensor query,
     torch::Tensor key,
@@ -56,7 +58,8 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tens
     int tensor_layout,
     int is_causal,
     int qk_quant_gran,
-    float sm_scale);
+    float sm_scale,
+    bool return_lse);
 
 torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
     torch::Tensor key,
@@ -72,7 +75,8 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
     int is_causal,
     int qk_quant_gran,
     float sm_scale,
-    int return_pv_count);
+    int return_pv_count,
+    bool return_lse);
 
 torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
     torch::Tensor key,
@@ -88,7 +92,8 @@ torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_wi
     int is_causal,
     int qk_quant_gran,
     float sm_scale,
-    int return_pv_count);
+    int return_pv_count,
+    bool return_lse);
 
 void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_sm90(
     torch::Tensor query,
@@ -103,7 +108,8 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_sm90(
     int tensor_layout,
     int is_causal,
     int qk_quant_gran,
-    float sm_scale);
+    float sm_scale,
+    bool return_lse);
 
 torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold_sm90(
     torch::Tensor query,
@@ -120,4 +126,5 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
     int is_causal,
     int qk_quant_gran,
     float sm_scale,
-    int return_pv_count);
+    int return_pv_count,
+    bool return_lse);
