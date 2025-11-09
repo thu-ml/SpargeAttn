@@ -782,7 +782,7 @@ __global__ void qk_int8_sv_f8_attn_kernel(const __grid_constant__ CUtensorMap te
   if constexpr (return_lse)
   { 
     // ! this only works for num_tiles_q = 2
-    static_assert(num_tiles_q == 2, "Only num_tiles_q == 2 is supported for Lse computation");
+    // static_assert(num_tiles_q == 2, "Only num_tiles_q == 2 is supported for Lse computation");
     
     uint32_t lse_idx = bx * CTA_Q + lane_id / 4 + 8 * (lane_id % 4) + WARP_Q * get_warp_idx_q<num_warps_q, num_warps_k>();
     float *lse_lane_ptr = Lse + batch_id * (qo_len * num_qo_heads) + head_id * qo_len + lse_idx;

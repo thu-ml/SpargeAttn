@@ -531,7 +531,7 @@ torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_wi
 
   auto output_dtype = output.scalar_type();
 
-  lse = torch::empty({0});
+  torch::Tensor lse = torch::empty({0});
   if (return_lse) {
     lse = torch::empty({batch_size, num_qo_heads, qo_len}, query.options().dtype(torch::kFloat32));
   }
