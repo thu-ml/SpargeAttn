@@ -789,7 +789,8 @@ __global__ void qk_int8_sv_f8_attn_kernel(const __grid_constant__ CUtensorMap te
 
     if (lse_idx < qo_len && (lane_id % 4) < 2)
     {
-      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) + m[fq][k]);
+      // Dequantization
+      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) - S_FP8_OFFSET + m[fq][k]);
     }
   }
 }

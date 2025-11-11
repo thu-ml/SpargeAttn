@@ -94,7 +94,14 @@ def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_caus
             qk_sparsity = 1 - (valid_block_num.float().sum()) / ((lut.size(3) + 2) // 2 * lut.size(2) * lut.size(0) * lut.size(1))
         return o, qk_sparsity.item()
     elif return_lse:
-        return o, lse
+        if smooth_k:
+            q_per_kv_heads = q.size(1) // k.size(1)
+            if q_per_kv_heads > 1:
+                km_broadcast = torch.repeat_interleave(km, q_per_kv_heads, dim=1)
+            else:
+                km_broadcast = km
+            lse_correction = torch.matmul(q, km_broadcast.transpose(2, 3)).squeeze(-1).to(torch.float32)
+            return o, lse / 1.44269504 + lse_correction * scale if smooth_k else lse / 1.44269504
     else:
         return o
 
@@ -156,7 +163,14 @@ def spas_sage2_attn_meansim_topk_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is
             qk_sparsity = 1 - (valid_block_num.float().sum()) / ((lut.size(3) + 2) // 2 * lut.size(2) * lut.size(0) * lut.size(1))
         return o, qk_sparsity.item()
     elif return_lse:
-        return o, lse
+        if smooth_k:
+            q_per_kv_heads = q.size(1) // k.size(1)
+            if q_per_kv_heads > 1:
+                km_broadcast = torch.repeat_interleave(km, q_per_kv_heads, dim=1)
+            else:
+                km_broadcast = km
+            lse_correction = torch.matmul(q, km_broadcast.transpose(2, 3)).squeeze(-1).to(torch.float32)
+            return o, lse / 1.44269504 + lse_correction * scale if smooth_k else lse / 1.44269504
     else:
         return o
     
@@ -215,7 +229,14 @@ def block_sparse_sage2_attn_cuda(q, k, v, mask_id=None, dropout_p=0.0, scale=Non
         qk_sparsity = 1 - (valid_block_num.float().sum()) / ((lut.size(3) + 2) // 2 * lut.size(2) * lut.size(0) * lut.size(1))
         return o, qk_sparsity.item()
     elif return_lse:
-        return o, lse
+        if smooth_k:
+            q_per_kv_heads = q.size(1) // k.size(1)
+            if q_per_kv_heads > 1:
+                km_broadcast = torch.repeat_interleave(km, q_per_kv_heads, dim=1)
+            else:
+                km_broadcast = km
+            lse_correction = torch.matmul(q, km_broadcast.transpose(2, 3)).squeeze(-1).to(torch.float32)
+            return o, lse / 1.44269504 + lse_correction * scale if smooth_k else lse / 1.44269504
     else:
         return o
 

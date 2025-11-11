@@ -763,7 +763,8 @@ __global__ void qk_int_sv_f8_block_sparse_attn_kernel(int8_t *__restrict__ Q, in
 
     if (lse_idx < qo_len)
     {
-      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) + m[fq][k]);
+      // Dequantization
+      lse_lane_ptr[0] = (math::ptx_log2(d[fq][k]) - S_FP8_OFFSET + m[fq][k]);
     }
   }
 }
