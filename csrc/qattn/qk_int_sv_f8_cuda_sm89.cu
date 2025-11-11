@@ -17,7 +17,7 @@
 #include "../pytorch_extensions_utils.cuh"
 #include "decl.cuh"
 
-void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tensor query,
+torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tensor query,
                     torch::Tensor key,
                     torch::Tensor value,
                     torch::Tensor output,
@@ -30,7 +30,7 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tens
                     int is_causal,
                     int qk_quant_gran,
                     float sm_scale,
-                    bool return_lse)
+                    int return_lse)
 {
   CHECK_CUDA(query);
   CHECK_CUDA(key);
@@ -201,9 +201,11 @@ void qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale(torch::Tens
       });
     });
   });
+
+  return lse;
 }
 
-torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
+std::pair<torch::Tensor, torch::Tensor> qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
                     torch::Tensor key,
                     torch::Tensor value,
                     torch::Tensor output,
@@ -218,7 +220,7 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
                     int qk_quant_gran,
                     float sm_scale,
                     int return_pv_count,
-                    bool return_lse)
+                    int return_lse)
 {
   CHECK_CUDA(query);
   CHECK_CUDA(key);
@@ -404,10 +406,10 @@ torch::Tensor qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_wi
     });
   });
 
-  return pv_count;
+  return std::make_pair(pv_count, lse);
 }
 
-torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
+std::pair<torch::Tensor, torch::Tensor> qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold(torch::Tensor query,
                     torch::Tensor key,
                     torch::Tensor value,
                     torch::Tensor output,
@@ -422,7 +424,7 @@ torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_wi
                     int qk_quant_gran,
                     float sm_scale,
                     int return_pv_count,
-                    bool return_lse)
+                    int return_lse)
 {
   CHECK_CUDA(query);
   CHECK_CUDA(key);
@@ -608,5 +610,5 @@ torch::Tensor qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_wi
     });
   });
 
-  return pv_count;
+  return std::make_pair(pv_count, lse);
 }
