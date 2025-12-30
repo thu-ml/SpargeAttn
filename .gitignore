@@ -1,9 +1,80 @@
-__pycache__
-spas_sage_attn.egg-info
-*.pkl
-/dist
-/build
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
 *.so
-.DS_Store
-inst*.cu
-/unit_test
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# pip
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+*.swp
+*.swo
+
+# ROCm cloned libraries
+/third_party/
+
+# HIP generated files
+*.hip
+
+# Build artifacts
+*.o
+*.obj
+
+# Instantiation generated files
+csrc/qattn/instantiations_sm80/*.cu
+csrc/qattn/instantiations_sm89/*.cu
+csrc/qattn/instantiations_sm90/*.cu
