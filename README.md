@@ -1,4 +1,28 @@
 # SpargeAttention
+
+## Recommended API
+We highly recommend using the `spas_sage2_attn_meansim_topk_cuda` and `block_sparse_sage2_attn_cuda` APIs. They are plug-and-play and customizable:
+
+### Plug-and-Play API
+```python
+from spas_sage_attn import spas_sage2_attn_meansim_topk_cuda
+
+attn_output = spas_sage2_attn_meansim_topk_cuda(q, k, v, topk=0.5, is_causal=False)
+```
+You can adjust `topk` to balance between attention accuracy (higher `topk` is more accurate) and sparsity (lower `topk` is more sparse). 
+
+
+### Customize your Block-Sparse Mask
+
+```python
+from spas_sage_attn import block_sparse_sage2_attn_cuda
+
+attn_output = block_sparse_sage2_attn_cuda(q, k, v, mask_id=None):
+```
+
+In this API, we **support computing attention in any block sparse mask per attention head**. Specifically, the per-head attention mask `mask_id` has shape `(batch_size, num_heads, ⌈seq_len / 128⌉, ⌈seq_len // 64⌉)` and consists of `0` and `1`. Currently, the block size is 128×64.
+
+---
 The official implementation of [SpargeAttn](https://arxiv.org/abs/2502.18137), a universal training-free sparse attention accelerating language, image, and video models.
 
 <div align="center"> <h2>SpargeAttention: Accurate and Training-free Sparse Attention<br>Accelerating Any Model Inference</h2> <a href="https://huggingface.co/papers/2502.18137"> <img src="https://img.shields.io/static/v1?label=Daily%20papers&message=HuggingFace&color=yellow" alt="Daily papers: HuggingFace"> </a> <a href="https://arxiv.org/abs/2502.18137"> <img src="https://img.shields.io/badge/arXiv-2502.18137-b31b1b.svg" alt="arXiv:2502.18137"> </a> </div> 
@@ -26,11 +50,12 @@ The official implementation of [SpargeAttn](https://arxiv.org/abs/2502.18137), a
 </p>
 
 ## Project Updates
-- [Sparse SageAttention1 API](https://github.com/jt-zhang/Sparse_SageAttention_API) and [Sparse SageAttention2 API](#usage-examples) can compute attention with any block sparse pattern very fast.
-- SpargeAttn based on [SageAttention2++](https://arxiv.org/abs/2505.21136) will be released around June 25.
-- [2025-05-11]: Add a **very simple usage without tuning or calibration**: `o = spas_sage2_attn_meansim_topk_cuda(q, k, v)`.
-- [2025-05-02]: 🎉SpargeAttn and [SageAttention2](https://github.com/thu-ml/SageAttention) are accepted by ICML 2025!
-- [2025-01-24]: 🎉[SageAttention](https://github.com/thu-ml/SageAttention) is accepted by ICLR 2025! 
+- **Please use the `spas_sage2_attn_meansim_topk_cuda` and `block_sparse_sage2_attn_cuda` APIs.**
+- [2025-07]: Release a Triton Kernel example. 
+- [2025-06]: SpargeAttn based on [SageAttention2++](https://arxiv.org/abs/2505.21136) is released.
+- [2025-05]: Add a **very simple usage without tuning or calibration**: `o = spas_sage2_attn_meansim_topk_cuda(q, k, v)`.
+- [2025-05]: 🎉SpargeAttn and [SageAttention2](https://github.com/thu-ml/SageAttention) are accepted by ICML 2025!
+- [2025-03] Support high acceleration on more GPUs, e.g., H100.
 
 ## Installation
 ### Base environment
@@ -47,7 +72,7 @@ python setup.py install   # or pip install -e .
 ```
 
 
-## Avalible API
+## Available API
 - `spas_sage2_attn_meansim_topk_cuda`: SpargeAttn based on [SageAttention2](https://github.com/thu-ml/SageAttention) that **we recommend using.**
 
 - `spas_sage2_attn_meansim_cuda`: SpargeAttn based on [SageAttention2](https://github.com/thu-ml/SageAttention) that we do not recommend.
@@ -58,37 +83,36 @@ python setup.py install   # or pip install -e .
 
 
 
-## Usage Examples
-### A Simple Usage Without Tuning for Any Model
-```python
-from spas_sage_attn import spas_sage2_attn_meansim_cuda
+## Usage
+### Plug-and-Play Usage
+Just replace `torch.nn.functional.scaled_dot_product_attention` API using `spas_sage2_attn_meansim_topk_cuda`:
+```diff
+from spas_sage_attn import spas_sage2_attn_meansim_topk_cuda
 
-attn_output = spas_sage2_attn_meansim_topk_cuda(q, k, v, simthreshd1=-0.1, topk=0.35, pvthreshd=15, is_causal=False)
+- attn_output = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=False)  # is_causal can be True
+
++ attn_output = spas_sage2_attn_meansim_topk_cuda(q, k, v, topk=0.5, is_causal=False) # is_causal can be True
 ```
-You can adjust `topk` to balance between attention accuracy (higher `topk` is more accurate) and sparsity (lower `topk` is more sparse). 
 
-<!-- For optimal accuracy and sparsity performance, we recommend running a tuning process before inference. -->
 
-### SpargeAttn API based on Top-K selection
-Top-K selection is also supported as an alternative to `cdfthreshd`. We find that Top-K sometimes can achieve better performance than Top-P in SpargeAttn. You can call the API as follows and set the fraction of top elements via the `topk` parameter:
-
+## Plug-and-Play API
 ```python
 from spas_sage_attn import spas_sage2_attn_meansim_topk_cuda
 
-attn_output = spas_sage2_attn_meansim_topk_cuda(q, k, v, simthreshd1=-0.1, topk=0.35, pvthreshd=15, is_causal=False)
+attn_output = spas_sage2_attn_meansim_topk_cuda(q, k, v, topk=0.5, is_causal=False)
 ```
+You can adjust `topk` to balance between attention accuracy (higher `topk` is more accurate) and sparsity (lower `topk` is more sparse). 
 
-Note: Automatic tuning for `topk` is not currently supported.
 
-### Sparge+SageAttention2++ with Any Block-Sparse Pattern
+## Customize your Block-Sparse Mask API
 
 ```python
 from spas_sage_attn import block_sparse_sage2_attn_cuda
 
-block_sparse_sage2_attn_cuda(q, k, v, mask_id=None, scale=None, pvthreshd=20, attention_sink=False, tensor_layout="HND", return_sparsity=False):
+attn_output = block_sparse_sage2_attn_cuda(q, k, v, mask_id=None):
 ```
 
-In this API, we support computing $S=QK^T$ in any block sparse pattern per attention head. And we compute $PV$ multiplication with further acceleration. Specifically, the attention mask per head, `mask_id`, is of shape `(batch_size, num_qo_heads, qo_seq_len // BLOCK_M, kv_seq_len // BLOCK_N)`. Currently, the supported block size is aligned to that of SpargeAttention, which is (BLOCK_M = 128, BLOCK_N = 64). The lower `pvthreshd`, the more sparsity for `PV` Matmul and faster attention.
+In this API, we **support computing attention for any block-sparse mask per attention head**. Specifically, the per-head attention mask `mask_id` has shape `(batch_size, num_heads, ⌈seq_len / 128⌉, ⌈seq_len // 64⌉)` and consists of `0` and `1`. Currently, the block size is 128×64.
 
 <!-- 
 ### CogVideoX
@@ -129,6 +153,7 @@ Our approach is universal, and we warmly welcome contributions! Feel free to sub
 
 -->
 
+<!-- 
 ## Performance
 ![Local Image](./assets/exp_table.png)
 > **Note:** All experiments in the above Table and our paper used SpargeAttn based on SageAttention. An updated implementation based on SageAttention2, is available now. **It further offers a 30% speedup.**
@@ -150,14 +175,14 @@ Our approach is universal, and we warmly welcome contributions! Feel free to sub
     </td>
   </tr>
 </table>
-
+-->
 
 <!-- <img src="./assets/visible_image.png" width="80%" alt="image generation."> -->
 
 
 
 ## Citation
-**If you use this code or find our work valuable, please cite:**
+
 ```
 @inproceedings{zhang2025spargeattn,
   title={Spargeattn: Accurate sparse attention accelerating any model inference},

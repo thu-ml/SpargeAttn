@@ -205,6 +205,7 @@ void transpose_pad_permute_cuda(
   CHECK_DIMS(output, 4);
 
   constexpr int CTA_SIZE = 64;
+  constexpr int PAD_SIZE = 128;
 
   const int batch_size = input.size(0);
   const int head_dim = input.size(3);
@@ -224,7 +225,7 @@ void transpose_pad_permute_cuda(
     stride_d_output = output.stride(1);
     stride_h_output = output.stride(2);
 
-    padded_num_tokens = (num_tokens + CTA_SIZE - 1) / CTA_SIZE * CTA_SIZE;
+    padded_num_tokens = (num_tokens + PAD_SIZE - 1) / PAD_SIZE * PAD_SIZE;
 
     CHECK_SHAPE(output, batch_size, head_dim, num_heads, padded_num_tokens);
   }
@@ -237,7 +238,7 @@ void transpose_pad_permute_cuda(
     stride_d_output = output.stride(2);
     stride_h_output = output.stride(1);
 
-    padded_num_tokens = (num_tokens + CTA_SIZE - 1) / CTA_SIZE * CTA_SIZE;
+    padded_num_tokens = (num_tokens + PAD_SIZE - 1) / PAD_SIZE * PAD_SIZE;
     CHECK_SHAPE(output, batch_size, num_heads, head_dim, padded_num_tokens);
   }
 
@@ -327,7 +328,7 @@ void scale_fuse_quant_cuda(
   auto input_dtype = input.scalar_type();
 
   DISPATCH_PYTORCH_DTYPE_TO_CTYPE_FP16(input_dtype, c_type, {
-    MeanScaleKernel<64, false, c_type><<<grid, block>>>(
+    MeanScaleKernel<128, false, c_type><<<grid, block>>>(
       reinterpret_cast<c_type*>(input.data_ptr()),
       reinterpret_cast<int8_t*>(output.data_ptr()),
       nullptr,
