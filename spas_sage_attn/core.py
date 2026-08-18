@@ -50,6 +50,7 @@ def spas_sage2_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_caus
     else:
         q, k, v = q.contiguous().to(torch.bfloat16), k.contiguous().to(torch.bfloat16), v.contiguous().to(torch.float16)
 
+    km = None
     if smooth_k:
         km = k.mean(dim=-2, keepdim=True)
         # k = k - km
@@ -116,6 +117,7 @@ def spas_sage2_attn_meansim_topk_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is
     else:
         q, k, v = q.contiguous().to(torch.bfloat16), k.contiguous().to(torch.bfloat16), v.contiguous().to(torch.float16)
 
+    km = None
     if smooth_k:
         km = k.mean(dim=-2, keepdim=True)
         # k = k - km
@@ -182,6 +184,7 @@ def block_sparse_sage2_attn_cuda(q, k, v, mask_id=None, dropout_p=0.0, scale=Non
     else:
         q, k, v = q.contiguous().to(torch.bfloat16), k.contiguous().to(torch.bfloat16), v.contiguous().to(torch.float16)
 
+    km = None
     if smooth_k:
         km = k.mean(dim=-2, keepdim=True)
         # k = k - km
@@ -246,6 +249,7 @@ def spas_sage_attn_meansim_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_causa
     else:
         q, k, v = q.contiguous().to(torch.bfloat16), k.contiguous().to(torch.bfloat16), v.contiguous().to(torch.float16)
 
+    km = None
     if smooth_k:
         km = k.mean(dim=-2, keepdim=True)
         # k = k - km
@@ -289,6 +293,7 @@ def spas_sage_attn_meansim_topk_cuda(q, k, v, attn_mask=None, dropout_p=0.0, is_
     else:
         q, k, v = q.contiguous().to(torch.bfloat16), k.contiguous().to(torch.bfloat16), v.contiguous().to(torch.float16)
 
+    km = None
     if smooth_k:
         km = k.mean(dim=-2, keepdim=True)
         # k = k - km
