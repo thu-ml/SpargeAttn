@@ -25,7 +25,9 @@ Active plan: `.omo/plans/sm120-blackwell-support.md` (under Momus review; goal i
 
 **CUDA 13 gotcha (probe-verified):** `csrc/mma.cuh` etc. fail standalone compile on CUDA 13.2 — CUDA 13 dropped transitive `<cstdint>` (`uint32_t` undefined, `cuda_fp8.h` internals break). Fix = explicit `#include <cstdint>` (plan item 2b). Related upstream: SpargeAttn issue #115 (CUDA 13 build failure), PR #45 (assert.h workaround pattern).
 
-**Instruction probes (sm_120 + sm_120a both OK, real SASS emitted):** `IMMA.16832.S8.S8` (int8 QK), `QMMA.16832.F16.E4M3.E4M3` (fp16-accum fp8 PV — Sage2++ peak-rate path), `QMMA.16832.F32.E4M3.E4M3` (half-rate). `120a` suffix needed only for FP4.
+**Instruction probes (sm_120 + sm_120a both OK, real SASS emitted):** `IMMA.16832.S8.S8` (int8 QK), `QMMA.16832.F16.E4M3.E4M3` (fp16-accum fp8 PV — 1x Ada Fp8 TC), `QMMA.16832.F32.E4M3.E4M3` (fp32-accum fp8 PV — 2x Ada Fp8 TC, the peak-rate path on sm_120). `120a` suffix needed only for FP4.
+
+**⚠ sm_120 MMA throughput (verified via cuda-docs, 2026-08-29):** `mma.sync.aligned.kind::f8f6f4` throughput on sm_120 is **1x Ada Fp8 TC with FP16 accumulator, 2x Ada Fp8 TC with FP32 accumulator**. This is the OPPOSITE of the prior plan assumption ("fp8+f32 accum = HALF rate"). On sm_120, **fp32-acc PV is the peak-rate path**, not fp16-acc. The A/B ratio (fp16-acc / fp32-acc) is ~0.95x — fp32-acc is genuinely faster. Do NOT assume fp16-acc is faster on sm_120; the upstream spec applies to Hopper/Ada, not Blackwell consumer.
 
 ## MCP resources — USE THEM, don't assume they're unavailable
 

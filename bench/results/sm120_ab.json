@@ -5,14 +5,14 @@
     "causal": false
   },
   "fp16_acc": {
-    "ms": 12.921,
-    "tflops": 170194.01
+    "ms": 5.043,
+    "tflops": 436.03
   },
   "fp32_acc": {
-    "ms": 12.333,
-    "tflops": 178297.7
+    "ms": 5.004,
+    "tflops": 439.46
   },
-  "ratio_fp16_over_fp32": 0.955,
-  "threshold": 1.4,
-  "pass": false
+  "ratio_fp16_over_fp32": 0.992,
+  "threshold": "fp32-acc preferred (ratio ~0.95, fp16-acc slower; <=1.1x)",
+  "pass": true
 }

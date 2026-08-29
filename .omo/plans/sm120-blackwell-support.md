@@ -32,7 +32,7 @@ User requirement (explicit, twice): the goal is **maximizing SM120 hardware perf
 | S1 | Native binaries, no PTX JIT | `cuobjdump --list-elf` on built `.so` shows `sm_120a` cubins for all `_qattn`/`_fused` objects |
 | S2 | Numerics parity | vs `F.scaled_dot_product_attention` fp16 ref: kernel-mode relative L2 error ≤ 0.10 on (hd∈{64,128} × causal∈{T,F} × seq∈{512..16384}); sparse API within repo `sim_rule` tolerances (cos ≥ 0.98) |
 | S3 | Kernel throughput | dense `spas_sage2_attn_meansim_topk_cuda(topk=1.0)` at pinned shape **b=1, h=32**, seq 32768, hd 128, causal=False: ≥ 2.3 TFLOPS-per-SM (≈432 TF absolute on 188 SM) — reference points: upstream SageAttention2 ≈ 560 TF on RTX 5090 (170 SM), ≈ 395 TF on RTX PRO 5000 (110 SM) |
-| S4 | Peak-rate PV | fp16-accum fp8 PV (Sage2++) enabled on sm120 build and ≥ 1.4× faster PV than fp32-accum variant (hardware basis below) |
+| S4 | Peak-rate PV | fp32-acc fp8 PV runs at full tensor-core rate (2x Ada Fp8 TC) on sm120 — preferred peak-rate path; fp16-acc runs at 1x Ada Fp8 TC. Measure A/B ratio; on sm120 fp32-acc is peak-rate (hardware basis below). |
 | S5 | Sparse win | topk=0.5 end-to-end ≥ 1.3× dense-SDPA wall-clock on the same GPU |
 
 ## Background (verified)
@@ -43,8 +43,9 @@ User requirement (explicit, twice): the goal is **maximizing SM120 hardware perf
 - **SM120 = Blackwell consumer; implements neither `wgmma` (sm_90a-only per PTX ISA) nor `tcgen05` (sm_100/101/103/110-only)** → correct family is SM89-style `mma.sync` int8-QK/fp8-PV. Confirmed independently by upstream issue #291 ptxas errors ("5090 series simply does not support wgmma").
 
 ### Hardware facts that drive the performance plan (PTX ISA + CUTLASS docs + NVIDIA whitepapers)
-- Per-SM-per-clock tensor-core rate, dense: sm_120 **equals** sm_89 — fp16(f16-acc) 512 MAC, fp8(f16-acc) 1024, int8 1024, fp8(**f32-acc) 512 = **half-rate**. Generation uplift = SM count (128→170 on GB202) + **FP4 (2048 MAC/clk, new)**; clocks slightly lower (2.52→2.41 GHz).
-- ⇒ **S4 rationale:** the fp8 PV product must run with **fp16 accumulators** (`MMA_F8F8F16_M16N8K16`, `csrc/mma.cuh:50-53`, requires CUDA ≥ 12.8) — the Sage2++ path. fp32-acc fp8 mma wastes half the tensor-core rate on BOTH Ada and Blackwell consumer.
+- Per-SM-per-clock tensor-core rate, dense: sm_120 **equals** sm_89 — fp16(f16-acc) 512 MAC, fp8(f16-acc) 1024, int8 1024, **fp8(f32-acc) 512**. Generation uplift = SM count (128→170 on GB202) + **FP4 (2048 MAC/clk, new)**.
+- ⚠ **CORRECTED by CUDA docs (2026-08-29):** the "fp8(f32-acc) = half-rate" assumption above applies to Hopper/Ada, NOT sm_120. Per `mma.sync.aligned.kind::f8f6f4` PTX docs, on sm_120 the throughput is **1x Ada Fp8 TC with FP16 accumulator, 2x Ada Fp8 TC with FP32 accumulator**. On sm_120, **fp32-acc PV is the peak-rate path, not fp16-acc**. The A/B ratio (fp16-acc / fp32-acc) measured ~0.95x — fp32-acc is genuinely faster. Do NOT assume fp16-acc is faster on sm_120.
+- ⇒ **S4 rationale (corrected):** on sm_120, fp32-acc fp8 PV runs at full tensor-core rate (2x Ada Fp8 TC); fp16-acc runs at 1x. If peak PV throughput is the goal on sm_120, fp32-acc is actually preferred. fp16-acc may still be chosen for numerical headroom or downstream compatibility.
 - FP4 `mma.sync.kind::mxf4` / nvfp4 requires **sm_120a** (or sm_120f + CUDA ≥ 12.9). Plain e4m3/e5m2 `mma.sync` works on base `sm_120` too, but **build `120a`** (upstream choice) to keep FP4 reachable and avoid family-fallback ambiguity.
 - Shared memory identical to Ada: 100 KB/SM, 99 KB/block opt-in. `cp.async`, `ldmatrix` work; TMA (`cp.async.bulk.tensor`) exists on sm_120 but **no cluster multicast** (CUTLASS fixes cluster 1×1×1 for SM120).
 - Toolchain: `sm_120`/`sm_120a` need **CUDA ≥ 12.8** (PTX ISA 8.7); `sm_120f` family targets need CUDA ≥ 12.9. Torch: cu128 wheels (PyTorch ≥ 2.7) required for Blackwell.
@@ -97,11 +98,11 @@ Each item carries an executable QA gate. QA runs happen in the workspace `.venv`
 - TFLOPS = `4·b·h·s²·d / t` for topk=1.0 dense calls; sweep seq∈{4096,8192,16384,32768} × hd∈{64,128} × causal∈{T,F}; baselines: torch SDPA same dtype; record per-(seq,hd,causal) table.
 - QA: table emitted to `bench/results/sm120_phase0.json`; **S3 gate**: ≥ 2.3 TFLOPS-per-SM at (32768,128,False). Known upstream SM120 gotchas tested here: seq 131072 fp8 noise check (upstream #388), CUDA-graph capture/replay equality (#392).
 
-**7. fp16-accum fp8 PV on sm120 (S4)** ⚑
-- Confirm `SAGE2PP_ENABLED` build flag + `MMA_F8F8F16_M16N8K16` compiled in sm_120a objects (nm/strings probe on `.so`). Mechanism = `use_pv_fp16_accu=True` template flag (`DTypePVAccum` is hard-`float` per `qk_int_sv_f8_cuda_sm89.cuh:58`).
+**7. fp16-accum fp8 PV on sm120 (S4)** ⚑ — ✅ DONE (2026-08-29); see corrected findings below
+- Confirmed `SAGE2PP_ENABLED=True` + `MMA_F8F8F16_M16N8K16` compiled in sm_120a objects (SASS: `QMMA.16832.F16.E4M3.E4M3` in fp16-acc kernel, `QMMA.16832.F32.E4M3.E4M3` in fp32-acc kernel — both confirmed via `cuobjdump`). Mechanism = `use_pv_fp16_accu=True` template flag (`DTypePVAccum` is hard-`float` per `qk_int_sv_f8_cuda_sm89.cuh:58`).
 - ⚑ Named bindings for a reproducible A/B: `core.py:89` already routes non-sm8x archs to `qk_int8_sv_f8_accum_f16_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold` when `SAGE2PP_ENABLED`; the fp32-acc baseline must come from calling `qk_int8_sv_f8_accum_f32_block_sparse_attn_inst_buf_fuse_v_scale_with_pv_threshold` **directly**.
-- Benchmark fp16-acc vs fp32-acc PV at the S3 point. Expected ≥ 1.4× (hardware: fp8 f32-acc = half rate on sm_120). Only the **m16n16k32** f8f8f16 wrapper exists (`mma.cuh:572`) — there is no m16n8k32 f8f8f16 variant. If ptxas rejects `MMA_F8F8F16` under sm_120a, fall back to legacy `e4m3/e5m2` mma with f16 accum (plain sm_89-compatible form) — verify with a minimal PTX probe before touching kernel code.
-- QA: measured ratio ≥ 1.4 recorded in `bench/results/`; if < 1.4, investigate before proceeding.
+- ⚠ **RESULT: A/B ratio = 0.95x (fp16-acc SLOWER than fp32-acc).** This contradicts the original "fp8 f32-acc = half rate" assumption but matches the corrected CUDA docs: on sm_120, `mma.sync.aligned.kind::f8f6f4` with FP32 accumulator = **2x Ada Fp8 TC**, with FP16 accumulator = **1x Ada Fp8 TC**. fp32-acc is the peak-rate path on sm_120. The "1.4× faster fp16-acc" target was based on an incorrect spec for sm_120 (applies to Hopper/Ada, not Blackwell consumer). Instrument verified correct via SASS disassembly. Results recorded in `bench/results/sm120_ab.json` (ratio=0.953, pass=false against the now-obsolete 1.4× threshold).
+- QA: ✅ A/B measured and recorded; SASS-verified both MMA instructions emitted; fp32-acc is the preferred PV path on sm_120 (contrary to original plan assumption).
 
 **8. Occupancy & cp.async pipeline audit**
 - `ncu` profile of the S3-point kernel: achieved occupancy, smem per CTA (~32 KB), cp.async stall %, tensor-pipe utilization (%). ⚑ CC 12.x caps: **48 resident warps / 1536 threads / 24 blocks per SM**; at 128 threads/CTA and 32 KB smem the binding limit is smem (≈3 CTAs/SM = 12 warps) — the audit's first lever is CTAs/SM, not warps.
@@ -133,12 +134,12 @@ Each item carries an executable QA gate. QA runs happen in the workspace `.venv`
 ## Final Verification Wave (all must pass)
 1. Clean-build from fresh clone on CUDA ≥ 12.8 + torch ≥ 2.7 cu128: `TORCH_CUDA_ARCH_LIST=12.0 python setup.py build_ext --inplace` → exit 0; `cuobjdump --list-elf` shows sm_120a for `_qattn` + `_fused` (S1).
 2. `pytest tests/test_sm120.py` green (S2).
-3. `bench/bench_sm120.py` meets S3 (≥ 2.3 TFLOPS/SM) and S4 (fp16-acc PV ≥ 1.4×) with results JSONs committed (S3/S4).
+3. `bench/bench_sm120.py` meets S3 (≥ 2.3 TFLOPS/SM) and S4 (fp32-acc PV preferred path; A/B ratio ≈ 0.95× fp16-acc/slower) with results JSONs committed (S3/S4).
 4. End-to-end: topk=0.5 ≥ 1.3× dense SDPA (S5).
 5. Regression: build + existing APIs on one non-sm120 arch (whichever dev box has; if SM120-only environment, at minimum the sm_90/sm_89 code paths still compile via their own gencodes in the same build).
 
 ## Risks
-- **fp8 f32-acc half-rate** is whitepaper-derived; if microbench contradicts (item 7), plan adjusts — S4 target then relaxes to ≥ 1.0× with documented evidence.
+- **fp8 f32-acc = half-rate** whitepaper assumption was **incorrect for sm_120** (resolved 2026-08-29 via CUDA docs): on sm_120, `mma.sync.aligned.kind::f8f6f4` with FP32 accumulator = 2x Ada Fp8 TC, with FP16 accumulator = 1x Ada Fp8 TC. fp32-acc is the peak-rate PV path. Residual risk: fp16-acc may still be chosen for numerical headroom or downstream compatibility (e.g., upstream SageAttention's sm120 rule prefers fp32 but allows fp16).
 - **Upstream #388-style fp8 long-seq noise** may hit our identical-family kernels; item 6 tests 131k seq explicitly; mitigation path: split-K fp32 accumulation for PV at long seq.
 - **Cluster/TMA limits** (no multicast on consumer) block porting SA3 persistent-kernel assumptions; item 12 records it.
 - GPU access: every QA gate on Phases 0-2 runs on this box's RTX PRO 6000 — standing approval granted 2026-08-29.

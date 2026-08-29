@@ -1,0 +1,51 @@
+{
+  "arch": "sm120",
+  "nsm": 188,
+  "topk": 0.5,
+  "results": [
+    {
+      "seq": 32768,
+      "hd": 128,
+      "causal": false,
+      "ms_lut": 0.964,
+      "ms_vtrans": 0.395,
+      "ms_vquant": 0.392,
+      "ms_quant_total": 1.752,
+      "ms_attn": 15.278,
+      "ms_sparse_e2e": 17.755,
+      "quant_share_pct": 9.9,
+      "nsm": 188
+    },
+    {
+      "seq": 16384,
+      "hd": 128,
+      "causal": false,
+      "ms_lut": 0.433,
+      "ms_vtrans": 0.199,
+      "ms_vquant": 0.117,
+      "ms_quant_total": 0.75,
+      "ms_attn": 3.708,
+      "ms_sparse_e2e": 4.974,
+      "quant_share_pct": 15.1,
+      "nsm": 188
+    },
+    {
+      "seq": 16384,
+      "hd": 64,
+      "causal": false,
+      "ms_lut": 0.448,
+      "ms_vtrans": 0.075,
+      "ms_vquant": 0.02,
+      "ms_quant_total": 0.543,
+      "ms_attn": 2.236,
+      "ms_sparse_e2e": 2.589,
+      "quant_share_pct": 21.0,
+      "nsm": 188
+    }
+  ],
+  "quant_share_gate": {
+    "pass": true,
+    "max_share_pct": 21.0,
+    "threshold_pct": 25.0
+  }
+}
