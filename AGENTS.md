@@ -60,3 +60,14 @@ Active plan: `.omo/plans/sm120-blackwell-support.md` (under Momus review; goal i
 1. **Upstream**: `thu-ml/SpargeAttn` has NO sm120 support (unmerged build-only PR #45). `thu-ml/SageAttention` solved it: merged PR #109 = SUPPORTED_ARCHS+12.0/12.1, CUDA≥12.8 gate, `compute_120a` gencode, sm89 kernel family compiled for sm_120, dispatch rule sm120→int8-QK/fp8-PV per-warp. Bug watch-list: #388 (fp8 noise >160k seq), #392 (CUDA graph), #378/#379 (hardcoded SM-count grid — NEVER hardcode).
 2. **HW spec**: sm_120 per-SM-per-clk == sm_89 for fp16/int8/fp8; FP4 (2× fp8) is new, needs sm_120a; fp8 with fp32 accumulator = HALF rate on both archs → use fp16-accum PV (`use_pv_fp16_accu` flag, `MMA_F8F8F16_M16N8K16`). wgmma/tcgen05 absent on sm_120.
 3. **Repo**: tile knobs duplicated between autogen.py and .cu wrappers (`qk_int_sv_f8_cuda_sm89.cu:140-143/326-329/521-524`); autotune.py tunes sparsity thresholds only, never tiles; `>= 900` guards in wgmma/sm90 .cuh numerically admit 1200 (clamp to <1000); guard census all-pass table in plan.
+
+## Phase 0 (committed 836aa89, 2026-08-29)
+- setup.py: added 12.0/12.1 to SUPPORTED_ARCHS, CUDA>=12.8 gate, 120a/121a gencode, cassert-workaround gated to CUDA<13.
+- csrc: added `#include <cstdint>` to mma.cuh, numeric_conversion.cuh, cp_async.cuh; clamped SM90 guards to `<1000`.
+- core.py: explicit sm120/sm121 routing; wired `is_causal` into binding call (was hardcoded False upstream — kernel MaskMode::kCausal never enabled).
+- tests/test_sm120.py: 26 pass + 1 xfail (upstream #392 CUDA-graph replay reproduction).
+
+## Phase 1 (committed e2a509e, 2026-08-29) — bench harness + fp16-acc pv A/B
+- **Item 6** — `bench/bench_sm120.py`: TFLOPS sweep (seq×hd×causal), S3 gate (≥2.3 TFLOPS/SM at (32768,128,False)), fp8 noise probe (#388 analogue), CUDA-graph replay equality (#392 analogue). Results → `bench/results/sm120_phase0.json`.
+- **⚑ IDLE-GPU REQUIREMENT**: TFLOPS/gpu-throughput measurements are invalid on a shared GPU. Re-run `bench/bench_sm120.py` on an idle GPU for valid throughput numbers. The correctness probes (fp8-noise, CUDA-graph replay) and the A/B plumbing are valid regardless.
+- **Item 7** — fp16-acc vs fp32-acc PV A/B plumbing: confirmed `SAGE2PP_ENABLED=True` and `MMA_F8F8F16_M16N8K16_ENABLED` guard passes on CUDA 13.0 + sm_120 (m16n16k32 f8f8f16 wrapper at mma.cuh:572 compiled in). Named bindings wired: `qk_int8_sv_f8_accum_f16_..._pv_threshold` (Sage2++ path) vs `qk_int8_sv_f8_accum_f32_..._pv_threshold` (direct call; fp32-accum baseline because `DTypeSVAccum` is hard-`float` at qk_int_sv_f8_cuda_sm89.cuh:58). Shared quantized inputs prepared via `get_block_map_meansim_fuse_quant` + `fused.transpose_pad_permute_cuda`/`scale_fuse_quant_cuda`, passed positionally to both bindings. A/B ratio → `bench/results/sm120_ab.json`. Re-run on idle GPU for valid ratio (target ≥1.4×).
