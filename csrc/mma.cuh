@@ -18,6 +18,7 @@
  */
 
 #pragma once
+#include <cstdint>  // CUDA 13 dropped transitive includes; uint32_t used throughout
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
