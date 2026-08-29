@@ -19,6 +19,8 @@
  */
 
 #pragma once
+#include <cstdint>  // CUDA 13 dropped transitive includes
+#include <cstddef>
 #include <cuda_runtime.h>
 
 namespace cp_async {

@@ -15,6 +15,7 @@ limitations under the License.
 """
 
 import os
+import sys
 from pathlib import Path
 import subprocess
 from packaging.version import parse, Version
@@ -37,7 +38,7 @@ def run_instantiations(src_dir: str):
 
     for py_file in py_files:
         print(f"Running: {py_file}")
-        os.system(f"python {py_file}")
+        os.system(f"{sys.executable} {py_file}")
 
 def get_instantiations(src_dir: str):
     # get all .cu files under src_dir
@@ -49,7 +50,7 @@ def get_instantiations(src_dir: str):
     ]
 
 # Supported NVIDIA GPU architectures.
-SUPPORTED_ARCHS = {"8.0", "8.6", "8.7", "8.9", "9.0"}
+SUPPORTED_ARCHS = {"8.0", "8.6", "8.7", "8.9", "9.0", "12.0", "12.1"}
 
 # Compiler flags.
 CXX_FLAGS = ["-g", "-O3", "-fopenmp", "-lgomp", "-std=c++17", "-DENABLE_BF16"]
@@ -62,7 +63,6 @@ NVCC_FLAGS = [
     "--threads=8",
     "-Xptxas=-v",
     "-diag-suppress=174", # suppress the specific warning
-    "-Xcompiler", "-include,cassert", # fix error occurs when compiling for SM90+ with newer CUDA toolkits
 ]
 
 ABI = 1 if torch._C._GLIBCXX_USE_CXX11_ABI else 0
@@ -136,6 +136,11 @@ nvcc_cuda_version = get_nvcc_cuda_version(CUDA_HOME)
 if not compute_capabilities:
     raise RuntimeError("No GPUs found. Please specify the target GPU architectures or build on a machine with GPUs.")
 
+# The -include,cassert workaround predates CUDA 13; with CUDA 13 it double-includes
+# c++config.h on the host pass (redefinition errors). csrc headers are self-contained now.
+if nvcc_cuda_version < Version("13"):
+    NVCC_FLAGS += ["-Xcompiler", "-include,cassert"]  # fix error occurs when compiling for SM90+ with CUDA 11/12 toolkits
+
 # Validate the NVCC CUDA version.
 if nvcc_cuda_version < Version("12.0"):
     raise RuntimeError("CUDA 12.0 or higher is required to build the package.")
@@ -147,6 +152,9 @@ if nvcc_cuda_version < Version("12.4"):
         raise RuntimeError(
             "CUDA 12.4 or higher is required for compute capability 9.0.")
 if nvcc_cuda_version < Version("12.8"):
+    if any(cc.startswith("12.0") or cc.startswith("12.1") for cc in compute_capabilities):
+        raise RuntimeError(
+            "CUDA 12.8 or higher is required for compute capability 12.0/12.1.")
     warnings.warn("CUDA 12.8 or higher is required for Sage2++")
     SAGE2PP_ENABLED = False
 
@@ -157,6 +165,10 @@ for capability in compute_capabilities:
         num = '90a'
         HAS_SM90 = True
         CXX_FLAGS += ["-DHAS_SM90"]
+    if num == '120':
+        num = '120a'  # arch-accelerated target; enables the full sm_120 instruction set
+    if num == '121':
+        num = '121a'
     if num == '80' or num == '86' or num == '87':
         SAGE2PP_ENABLED = False
     

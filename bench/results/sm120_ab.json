@@ -1,0 +1,18 @@
+{
+  "point": {
+    "seq": 32768,
+    "hd": 128,
+    "causal": false
+  },
+  "fp16_acc": {
+    "ms": 5.043,
+    "tflops": 436.03
+  },
+  "fp32_acc": {
+    "ms": 5.004,
+    "tflops": 439.46
+  },
+  "ratio_fp16_over_fp32": 0.992,
+  "threshold": "fp32-acc preferred (ratio ~0.95, fp16-acc slower; <=1.1x)",
+  "pass": true
+}

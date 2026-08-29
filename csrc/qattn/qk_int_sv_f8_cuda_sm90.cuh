@@ -25,7 +25,7 @@
 #include "attn_utils.cuh"
 #include <assert.h>
 
-#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 900))
+#if (!defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 900 && __CUDA_ARCH__ < 1000)) // clamp: wgmma is sm_90-family-only; do not admit sm_100+/sm_120
 #define SM90_ENABLED
 #endif
 
