@@ -178,7 +178,7 @@ def triton_bmm_pool_sim_simmean_fuse_quant(
     block_offset = b * H * N * D + h * N * D + nb * BS * D
     xmask = (nb*BS + tl.arange(0, BS)[:, None]) < N
     x_ptrs = x_ptr + block_offset + tl.arange(0, BS)[:, None] * D + tl.arange(0, D)[None, :]
-    x = tl.load(x_ptrs, mask = xmask)
+    x = tl.load(x_ptrs, mask = xmask, other=0.0)
     BS_ = BS if (N - nb*BS) >= BS else (N - nb*BS)
 
     if fuse_mean:
@@ -221,7 +221,7 @@ def triton_bmm_pool_sim_simmean(x_ptr, pool_ptr, sim_ptr, simthreshd1, N: tl.con
     block_offset = b * H * N * D + h * N * D + nb * BS * D
     xmask = (nb*BS + tl.arange(0, BS)[:, None]) < N
     x_ptrs = x_ptr + block_offset + tl.arange(0, BS)[:, None] * D + tl.arange(0, D)[None, :]
-    x = tl.load(x_ptrs, mask = xmask)
+    x = tl.load(x_ptrs, mask = xmask, other=0.0)
     BS_ = BS if (N - nb*BS) >= BS else (N - nb*BS)
 
     cur_h1 = tl.load(simthreshd1 + h)
