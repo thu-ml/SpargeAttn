@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cassert>
+
 #include "../pytorch_extensions_utils.cuh"
 #include "decl.cuh"
 
